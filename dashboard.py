@@ -7,6 +7,7 @@ Usage:
 import argparse
 import glob
 import os
+import random
 
 import pandas as pd
 import plotly.express as px
@@ -18,20 +19,61 @@ def parse_address(address):
     host, _, port = address.partition(":")
     return host or None, int(port) if port else None
 
+def get_dataframe(path):
+    """Read every .csv under path into a single DataFrame.
 
-def create_app(path):
-    """Build the Dash app, listing the .csv files found in the given path."""
+    Each CSV gets a "test_name" column set to the name of its parent
+    directory, and all the frames are concatenated together.
+    """
     csv_files = sorted(
         os.path.relpath(f, path)
         for f in glob.glob(os.path.join(path, "**", "*.csv"), recursive=True)
     )
 
-    # Read each CSV into a DataFrame, keyed by its parent directory name.
-    dataframes = {
-        os.path.basename(os.path.dirname(name)): pd.read_csv(os.path.join(path, name))
-        for name in csv_files
-    }
-    
+    columns = ["wall_time", "user_time", "system_time"]
+
+    # Read every CSV first, before applying any jitter.
+    base_frames = []
+    for name in csv_files:
+        df = pd.read_csv(os.path.join(path, name))
+        df["test_name"] = os.path.basename(os.path.dirname(name))
+        base_frames.append(df)
+
+    # Combined total across all frames, used to weight the shared jitter.
+    grand_total = sum(df[columns].to_numpy().sum() for df in base_frames)
+
+    versions = []
+    for version in range(1, 6):
+        # A different random jitter per version, shared across all frames.
+        jitter = random.uniform(-0.05, 0.05) * grand_total
+
+        for base in base_frames:
+            df = base.copy()
+            df["version"] = version
+
+            # This frame's cumulative total, and its share of the jitter.
+            total = df[columns].to_numpy().sum()
+            frame_jitter = jitter * (total / grand_total)
+
+            # Each row's sum and its proportional slice of this frame's jitter.
+            row_sum = df[columns].sum(axis=1)
+            row_jitter = frame_jitter * (row_sum / total)
+
+            # Split each row's jitter across its columns by each entry's weight.
+            for col in columns:
+                entry_weight = df[col] / row_sum
+                df[col] += row_jitter * entry_weight
+
+            versions.append(df)
+
+    return pd.concat(versions, ignore_index=True)
+
+
+def create_app(path):
+    """Build the Dash app, listing the .csv files found in the given path."""
+    dataframe = get_dataframe(path)
+    test_names = sorted(dataframe["test_name"].unique())
+
     app = Dash(__name__)
     app.layout = html.Div(
         children=[
@@ -39,42 +81,48 @@ def create_app(path):
             html.H2("CSV files"),
             dcc.Dropdown(
                 id="dataframe-dropdown",
-                options=[name for name in dataframes.keys()],
-                value=next(iter(dataframes), None),
+                options=test_names,
+                value=test_names[0] if test_names else None,
                 placeholder="Select a dataframe",
             ),
-            dcc.Graph(id="dataframe-graph"),
+            html.Div(
+                id="dataframe-graphs",
+                style={
+                    "display": "grid",
+                    "gridTemplateColumns": "repeat(auto-fit, minmax(400px, 1fr))",
+                    "gap": "1rem",
+                },
+            ),
         ]
     )
 
     @callback(
-        Output("dataframe-graph", "figure"),
+        Output("dataframe-graphs", "children"),
         Input("dataframe-dropdown", "value"),
     )
-    def update_graph(name):
-        df = dataframes.get(name)
-        if df is None:
-            return px.bar()
-        fig = px.bar(
-            df,
-            y="timer_name",
-            x=["wall_time", "user_time", "system_time"],
-            orientation="h",
-            barmode="stack",
-            hover_data=["n_calls"],
-        )
-        # Show shortened y-axis labels; the full name remains visible on hover.
-        def shorten(label, limit=25):
-            return label if len(label) <= limit else label[: limit - 1] + "…"
+    def update_graphs(name):
+        df = dataframe[dataframe["test_name"] == name]
+        if df.empty:
+            return []
 
-        fig.update_yaxes(
-            tickmode="array",
-            tickvals=df["timer_name"],
-            ticktext=[shorten(name) for name in df["timer_name"]],
-        )
-        # Scale height with the number of bars so they stay readable.
-        fig.update_layout(height=max(400, 25 * len(df)))
-        return fig
+        # One graph per timer, showing how its times change across versions.
+        graphs = []
+        for timer_name, group in df.groupby("timer_name"):
+            group = group.sort_values("version")
+            fig = px.line(
+                group,
+                x="version",
+                y=["wall_time", "user_time", "system_time"],
+                markers=True,
+                title=timer_name,
+                hover_data=["n_calls"],
+            )
+            # Show every version as a discrete tick on the x-axis.
+            fig.update_xaxes(tickmode="linear", dtick=1)
+            # Keep each graph short so more fit on screen at once.
+            fig.update_layout(height=250, margin=dict(t=40, b=30))
+            graphs.append(dcc.Graph(figure=fig))
+        return graphs
 
     return app
 
