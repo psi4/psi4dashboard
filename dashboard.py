@@ -37,6 +37,13 @@ def get_dataframe(path):
     for name in csv_files:
         df = pd.read_csv(os.path.join(path, name))
         df["test_name"] = os.path.basename(os.path.dirname(name))
+
+        # Break timer_name into a group prefix and leaf name on the last ":".
+        # rpartition keeps the whole string as the leaf when there's no colon.
+        parts = df["timer_name"].str.rpartition(":")
+        df["timer_group"] = parts[0].str.strip()
+        df["timer_name"] = parts[2].str.strip()
+
         base_frames.append(df)
 
     # Combined total across all frames, used to weight the shared jitter.
@@ -105,23 +112,25 @@ def create_app(path):
         if df.empty:
             return []
 
-        # One graph per timer, showing how its times change across versions.
+        # For each timer group, one graph per metric, with a line per timer_name.
         graphs = []
-        for timer_name, group in df.groupby("timer_name"):
+        for timer_group, group in df.groupby("timer_group"):
             group = group.sort_values("version")
-            fig = px.line(
-                group,
-                x="version",
-                y=["wall_time", "user_time", "system_time"],
-                markers=True,
-                title=timer_name,
-                hover_data=["n_calls"],
-            )
-            # Show every version as a discrete tick on the x-axis.
-            fig.update_xaxes(tickmode="linear", dtick=1)
-            # Keep each graph short so more fit on screen at once.
-            fig.update_layout(height=250, margin=dict(t=40, b=30))
-            graphs.append(dcc.Graph(figure=fig))
+            for metric in ["wall_time", "user_time", "system_time"]:
+                fig = px.area(
+                    group,
+                    x="version",
+                    y=metric,
+                    color="timer_name",
+                    markers=True,
+                    title=f"{timer_group} — {metric}",
+                    hover_data=["n_calls"],
+                )
+                # Show every version as a discrete tick on the x-axis.
+                fig.update_xaxes(tickmode="linear", dtick=1)
+                # Keep each graph short so more fit on screen at once.
+                fig.update_layout(height=250, margin=dict(t=40, b=30))
+                graphs.append(dcc.Graph(figure=fig))
         return graphs
 
     return app
