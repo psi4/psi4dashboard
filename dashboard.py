@@ -1,17 +1,16 @@
-"""Create and run a Dash app on a specified server address.
+"""Create and run a multi-page Dash app on a specified server address.
 
 Usage:
     python dashboard.py --path /path/to/data --address 127.0.0.1:8050
 """
 
 import argparse
-import glob
 import os
-import random
 
-import pandas as pd
-import plotly.express as px
-from dash import Dash, Input, Output, callback, dcc, html
+import dash
+from dash import Dash, dcc, html
+
+from data import get_dataframe, set_dataframe
 
 
 def parse_address(address):
@@ -19,128 +18,42 @@ def parse_address(address):
     host, _, port = address.partition(":")
     return host or None, int(port) if port else None
 
-def get_dataframe(path):
-    """Read every .csv under path into a single DataFrame.
 
-    Each CSV gets a "test_name" column set to the name of its parent
-    directory, and all the frames are concatenated together.
-    """
-    csv_files = sorted(
-        os.path.relpath(f, path)
-        for f in glob.glob(os.path.join(path, "**", "*.csv"), recursive=True)
-    )
+def create_app():
+    """Build the multi-page Dash app from the .csv files found in the given path."""
+    set_dataframe(get_dataframe())
 
-    columns = ["wall_time", "user_time", "system_time"]
-
-    # Read every CSV first, before applying any jitter.
-    base_frames = []
-    for name in csv_files:
-        df = pd.read_csv(os.path.join(path, name))
-        df["test_name"] = os.path.basename(os.path.dirname(name))
-
-        # Break timer_name into a group prefix and leaf name on the last ":".
-        # rpartition keeps the whole string as the leaf when there's no colon.
-        parts = df["timer_name"].str.rpartition(":")
-        df["timer_group"] = parts[0].str.strip()
-        df["timer_name"] = parts[2].str.strip()
-
-        base_frames.append(df)
-
-    # Combined total across all frames, used to weight the shared jitter.
-    grand_total = sum(df[columns].to_numpy().sum() for df in base_frames)
-
-    versions = []
-    for version in range(1, 6):
-        # A different random jitter per version, shared across all frames.
-        jitter = random.uniform(-0.05, 0.05) * grand_total
-
-        for base in base_frames:
-            df = base.copy()
-            df["version"] = version
-
-            # This frame's cumulative total, and its share of the jitter.
-            total = df[columns].to_numpy().sum()
-            frame_jitter = jitter * (total / grand_total)
-
-            # Each row's sum and its proportional slice of this frame's jitter.
-            row_sum = df[columns].sum(axis=1)
-            row_jitter = frame_jitter * (row_sum / total)
-
-            # Split each row's jitter across its columns by each entry's weight.
-            for col in columns:
-                entry_weight = df[col] / row_sum
-                df[col] += row_jitter * entry_weight
-
-            versions.append(df)
-
-    return pd.concat(versions, ignore_index=True)
-
-
-def create_app(path):
-    """Build the Dash app, listing the .csv files found in the given path."""
-    dataframe = get_dataframe(path)
-    test_names = sorted(dataframe["test_name"].unique())
-
-    app = Dash(__name__)
+    app = Dash(__name__, use_pages=True, suppress_callback_exceptions=True)
     app.layout = html.Div(
         children=[
-            html.H1("Psi4 Dashboard"),
-            html.H2("CSV files"),
-            dcc.Dropdown(
-                id="dataframe-dropdown",
-                options=test_names,
-                value=test_names[0] if test_names else None,
-                placeholder="Select a dataframe",
-            ),
-            html.Div(
-                id="dataframe-graphs",
+            html.Header(
+                children=[
+                    html.H1("Psi4 Dashboard", style={"margin": 0}),
+                    html.Nav(
+                        children=[
+                            dcc.Link(page["name"], href=page["relative_path"])
+                            for page in dash.page_registry.values()
+                        ],
+                        style={"display": "flex", "gap": "1.5rem"},
+                    ),
+                ],
                 style={
-                    "display": "grid",
-                    "gridTemplateColumns": "repeat(auto-fit, minmax(400px, 1fr))",
-                    "gap": "1rem",
+                    "display": "flex",
+                    "justifyContent": "space-between",
+                    "alignItems": "center",
+                    "padding": "1rem 0",
+                    "marginBottom": "1rem",
+                    "borderBottom": "1px solid #ddd",
                 },
             ),
+            dash.page_container,
         ]
     )
-
-    @callback(
-        Output("dataframe-graphs", "children"),
-        Input("dataframe-dropdown", "value"),
-    )
-    def update_graphs(name):
-        df = dataframe[dataframe["test_name"] == name]
-        if df.empty:
-            return []
-
-        # For each timer group, one graph per metric, with a line per timer_name.
-        graphs = []
-        for timer_group, group in df.groupby("timer_group"):
-            group = group.sort_values("version")
-            for metric in ["wall_time", "user_time", "system_time"]:
-                fig = px.area(
-                    group,
-                    x="version",
-                    y=metric,
-                    color="timer_name",
-                    markers=True,
-                    title=f"{timer_group} — {metric}",
-                    hover_data=["n_calls"],
-                )
-                # Show every version as a discrete tick on the x-axis.
-                fig.update_xaxes(tickmode="linear", dtick=1)
-                # Keep each graph short so more fit on screen at once.
-                fig.update_layout(height=250, margin=dict(t=40, b=30))
-                graphs.append(dcc.Graph(figure=fig))
-        return graphs
-
     return app
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run a Dash app on a server.")
-    parser.add_argument(
-        "-p", "--path", default=os.getcwd(), help="Path the app should use."
-    )
     parser.add_argument(
         "-a",
         "--address",
@@ -150,14 +63,14 @@ def main():
     args = parser.parse_args()
 
     host, port = parse_address(args.address)
-    app = create_app(args.path)
+    app = create_app()
 
     run_kwargs = {}
     if host:
         run_kwargs["host"] = host
     if port:
         run_kwargs["port"] = port
-    app.run(**run_kwargs)
+    app.run(**run_kwargs, debug=True)
 
 
 if __name__ == "__main__":
