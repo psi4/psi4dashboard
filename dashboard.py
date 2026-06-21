@@ -1,11 +1,10 @@
 """Create and run a multi-page Dash app on a specified server address.
 
 Usage:
-    python dashboard.py --path /path/to/data --address 127.0.0.1:8050
+    python dashboard.py --address 127.0.0.1:8050
 """
 
 import argparse
-import os
 
 import dash
 from dash import Dash, dcc, html
@@ -27,26 +26,29 @@ def create_app():
     app.layout = html.Div(
         children=[
             html.Header(
-                children=[
-                    html.H1("Psi4 Dashboard", style={"margin": 0}),
-                    html.Nav(
-                        children=[
-                            dcc.Link(page["name"], href=page["relative_path"])
-                            for page in dash.page_registry.values()
-                        ],
-                        style={"display": "flex", "gap": "1.5rem"},
-                    ),
-                ],
-                style={
-                    "display": "flex",
-                    "justifyContent": "space-between",
-                    "alignItems": "center",
-                    "padding": "1rem 0",
-                    "marginBottom": "1rem",
-                    "borderBottom": "1px solid #ddd",
-                },
+                className="site-header",
+                children=html.Div(
+                    className="header-inner",
+                    children=[
+                        html.H1(
+                            className="site-brand",
+                            children=[
+                                "Psi",
+                                html.Span("4", className="brand-accent"),
+                                " Dashboard",
+                            ],
+                        ),
+                        html.Nav(
+                            className="site-nav",
+                            children=[
+                                dcc.Link(page["name"], href=page["relative_path"])
+                                for page in dash.page_registry.values()
+                            ],
+                        ),
+                    ],
+                ),
             ),
-            dash.page_container,
+            html.Main(className="page-content", children=dash.page_container),
         ]
     )
     return app

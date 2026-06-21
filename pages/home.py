@@ -11,6 +11,6 @@ def layout(**kwargs):
         children=[
             html.H2("Welcome"),
             html.P("Explore Psi4 timing data across versions."),
-            dcc.Link("View tests →", href="/tests"),
+            dcc.Link("View tests →", href="/tests", className="btn-link"),
         ]
     )

@@ -1,0 +1,238 @@
+/* Psi4 Dashboard theme — modeled after https://psicode.org/
+   Dark slate palette, Dosis headings, Raleway body. */
+
+@import url('https://fonts.googleapis.com/css2?family=Dosis:wght@200;400;500;700&family=Raleway:wght@200;400;700&display=swap');
+
+:root {
+    --bg-page: #353b43;
+    --bg-nav: #1d2024;
+    --bg-card: #292f36;
+    --accent-blue: #44689d;
+    --accent-blue-light: #5f99cf;
+    --accent-teal: #2c9091;
+    --accent-green: #6cb670;
+    --text-heading: #afbac4;
+    --text-body: #8f98a1;
+    --border: #4e595f;
+}
+
+html {
+    color: var(--text-body);
+}
+
+body {
+    margin: 0;
+    background-color: var(--bg-page);
+    font-family: "Raleway", sans-serif;
+    color: var(--text-body);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: "Dosis", sans-serif;
+    font-weight: 500;
+    color: var(--text-heading);
+    letter-spacing: 0.5px;
+}
+
+p {
+    color: var(--text-body);
+}
+
+a {
+    color: var(--accent-blue-light);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--accent-teal);
+}
+
+/* ---- Layout ---- */
+
+.page-content {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+/* ---- Header / navbar ---- */
+
+.site-header {
+    background-color: var(--bg-nav);
+    border-bottom: 3px solid var(--accent-blue);
+}
+
+.site-header .header-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1.5rem;
+}
+
+.site-brand {
+    margin: 0;
+    font-family: "Dosis", sans-serif;
+    font-weight: 700;
+    font-size: 1.9rem;
+    letter-spacing: 1px;
+    color: var(--text-heading);
+}
+
+.site-brand .brand-accent {
+    color: var(--accent-blue-light);
+}
+
+.site-nav {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.site-nav a {
+    font-family: "Dosis", sans-serif;
+    font-weight: 500;
+    font-size: 1.15rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-body);
+    padding: 0.4rem 0.9rem;
+    border-radius: 3px;
+}
+
+.site-nav a:hover {
+    color: #fff;
+    background-color: var(--accent-blue);
+}
+
+/* ---- Cards / graph groups ---- */
+
+.graph-group {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.1rem 1.25rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.graph-group h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.35rem;
+    color: var(--text-heading);
+    border-left: 4px solid var(--accent-green);
+    padding-left: 0.6rem;
+}
+
+.btn-link {
+    display: inline-block;
+    margin-top: 1rem;
+    background-color: var(--accent-blue);
+    color: #fff !important;
+    padding: 0.6rem 1.6rem;
+    border-radius: 3px;
+    font-family: "Dosis", sans-serif;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.btn-link:hover {
+    background-color: var(--accent-teal);
+    color: #fff !important;
+}
+
+/* ---- Form controls (dark theme) ---- */
+
+/* Dropdown (Dash 4.x dcc.Dropdown). Dash themes it through its own
+   --Dash-* design tokens, which default to a light control. Override the
+   relevant classes so the control and its menu read like the .graph-group
+   cards (same bg-card fill, border and body text). The menu popover is
+   portaled to <body>, so its classes are targeted directly rather than via
+   a parent. !important beats Dash's bundled component stylesheet. */
+.dash-dropdown {
+    background: var(--bg-card) !important;
+    border-color: var(--border) !important;
+    color: var(--text-body) !important;
+}
+
+.dash-dropdown:focus {
+    border-color: var(--accent-blue-light) !important;
+    outline-color: var(--accent-blue-light) !important;
+}
+
+.dash-dropdown-value,
+.dash-dropdown-trigger-icon,
+.dash-dropdown-placeholder {
+    color: var(--text-body) !important;
+}
+
+/* Open menu popover */
+.dash-dropdown-content {
+    background: var(--bg-card) !important;
+    border-color: var(--border) !important;
+    color: var(--text-body) !important;
+}
+
+.dash-dropdown-search-container {
+    background: var(--bg-card) !important;
+    border-color: var(--border) !important;
+}
+
+.dash-dropdown-search {
+    color: var(--text-body) !important;
+}
+
+.dash-dropdown-option {
+    background: var(--bg-card) !important;
+    color: var(--text-body) !important;
+}
+
+/* Hovered / keyboard-highlighted option (scoped to the dropdown menu so it
+   doesn't bleed into Checklist/RadioItems, which share .dash-options-list-*) */
+.dash-dropdown-option:hover,
+.dash-dropdown-content .dash-options-list-option[aria-selected="true"] {
+    background: var(--accent-blue) !important;
+    color: #fff !important;
+}
+
+/* Checklist */
+.dash-checklist label,
+input[type="checkbox"] + label {
+    color: var(--text-body);
+    font-family: "Raleway", sans-serif;
+    margin-right: 1.25rem;
+}
+
+/* Slider line. Dash 4.x styles these from the component's own stylesheet, so
+   override with !important. ``track`` is the full line and ``range`` the
+   selected portion; both use the mark/checklist color so the whole control
+   reads consistently. (``dot`` only renders when ``dots=True``, which we don't
+   set — the visible ticks are the mark ``::before`` pseudo-elements below.) */
+.dash-slider-track,
+.dash-slider-range {
+    background-color: var(--text-body) !important;
+}
+
+/* Match the checklist option color. Dash 4.x renders marks as
+   ``.dash-slider-mark`` with an inline color, so ``!important`` is needed to
+   override it. ``-outside-selection`` is the variant for marks beyond the
+   selected range. */
+.dash-slider-mark,
+.dash-slider-mark-outside-selection {
+    color: var(--text-body) !important;
+}
+
+/* The tick above each mark is a ``::before`` pseudo-element colored
+   ``--Dash-Fill-Disabled`` (gray) by default; recolor it to match the labels. */
+.dash-slider-mark::before,
+.dash-slider-mark-outside-selection::before {
+    background-color: var(--text-body) !important;
+}
+
+/* Plotly graphs sit on the card background */
+.js-plotly-plot {
+    margin-top: 0.5rem;
+}
