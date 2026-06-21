@@ -13,20 +13,9 @@ import plotly.express as px
 from dash import Input, Output, State, callback, dcc, html
 
 from data import get_groups, get_levels, get_options
-from theme import style_figure
+from theme import GRID, style_figure
 
 METRICS = ["wall_time", "user_time", "system_time"]
-
-# Grid layout for the per-metric graphs.
-# ``alignItems: start`` keeps cells from stretching to the row height, which
-# otherwise feeds the responsive Plotly graphs a growing height and makes them
-# expand vertically without bound.
-GRID_STYLE = {
-    "display": "grid",
-    "gridTemplateColumns": "repeat(auto-fit, minmax(400px, 1fr))",
-    "gap": "1rem",
-    "alignItems": "start",
-}
 
 
 def _dropdown_for_level(level, column, current=None):
@@ -42,31 +31,26 @@ def _dropdown_for_level(level, column, current=None):
     return options, value
 
 
-def _graph_group(label, group, metrics):
-    """Build one card: a heading plus a line chart per selected metric."""
-    figures = []
-    
-    for metric in metrics:
-        fig = px.line(
-            group,
-            x="version",
-            y=metric,
-            color='timer_name',
-            markers=True,
-            hover_data=["n_calls"],
-        )
-        # Show every version as a discrete tick on the x-axis.
-        fig.update_xaxes(tickmode="linear", dtick=1)
-        # Keep each graph short so more fit on screen at once.
-        fig.update_layout(height=250, margin=dict(l=40, r=10, t=10, b=30))
-        style_figure(fig)
-        figures.append(dcc.Graph(figure=fig))
+def _graph_group(label, group, metric):
+    """Build one card: a heading plus the line chart for the selected metric."""
+    fig = px.line(
+        group,
+        x="version",
+        y=metric,
+        color="timer_name",
+        markers=True,
+        hover_data=["n_calls"],
+    )
+    # Show every version as a discrete tick on the x-axis.
+    fig.update_xaxes(tickmode="linear", dtick=1)
+    # Anchor the y-axis at 0 so bars/lines are read against a common baseline.
+    fig.update_yaxes(rangemode="tozero")
+    # Keep each graph short so more fit on screen at once.
+    fig.update_layout(height=250, margin=dict(l=40, r=10, t=10, b=30))
+    style_figure(fig)
     return html.Div(
         className="graph-group",
-        children=[
-            html.H3(label),
-            html.Div(figures, style=GRID_STYLE),
-        ],
+        children=[html.H3(label), dcc.Graph(figure=fig)],
     )
 
 
@@ -135,12 +119,19 @@ def build_metric_page(
                     placeholder=placeholder,
                     style={"marginTop": "1.5rem"},
                 ),
-                dcc.Checklist(
+                dcc.Tabs(
                     id=metrics_id,
-                    options=METRICS,
-                    value=METRICS,
-                    inline=True,
-                    style={"margin": "0.5rem 0"},
+                    value=METRICS[0],
+                    children=[
+                        dcc.Tab(label=m.replace("_", " ").title(), value=m)
+                        for m in METRICS
+                    ],
+                    colors={
+                        "border": GRID,
+                        "primary": "#5f99cf",
+                        "background": "#292f36",
+                    },
+                    style={"margin": "1rem 0 0.5rem"},
                 ),
                 html.Div(id=graphs_id),
             ]
@@ -180,11 +171,11 @@ def build_metric_page(
         Input(metrics_id, "value"),
         Input(slider_id, "value"),
     )
-    def update_graphs(value, metrics, level):
+    def update_graphs(value, metric, level):
         # One card per group_column value, with rows filtered and sorted by the
         # data layer so the line follows versions.
         return [
-            _graph_group(key, group, metrics)
+            _graph_group(key, group, metric)
             for key, group in get_groups(select_column, value, level, group_column)
         ]
 
