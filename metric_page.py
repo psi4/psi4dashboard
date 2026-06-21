@@ -149,7 +149,16 @@ def build_metric_page(
                     },
                     style={"margin": "1rem 0 0.5rem"},
                 ),
-                html.Div(id=graphs_id),
+                dcc.Loading(
+                    children=html.Div(id=graphs_id),
+                    type="circle",
+                    color="#5f99cf",
+                    # The spinner is flex-centered over the full height of the
+                    # (tall) graph grid, so on an update it lands in the vertical
+                    # middle — off-screen. Align it to the top of the grid, just
+                    # under the controls, where it stays visible.
+                    style={"alignSelf": "flex-start", "marginTop": "1rem"},
+                ),
             ]
         )
 
