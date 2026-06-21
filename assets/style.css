@@ -190,6 +190,15 @@ a:hover {
     color: var(--text-body) !important;
 }
 
+/* Timer names carry their hierarchy as indented, multi-line labels (see
+   _nest_label). Preserve the newlines/tabs in both the menu options and the
+   selected value rather than collapsing them; a compact tab-size keeps each
+   level's indent tidy. */
+.dash-dropdown-option {
+    white-space: pre !important;
+    tab-size: 2;
+}
+
 /* Hovered / keyboard-highlighted option (scoped to the dropdown menu so it
    doesn't bleed into Checklist/RadioItems, which share .dash-options-list-*) */
 .dash-dropdown-option:hover,

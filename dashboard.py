@@ -41,7 +41,7 @@ def create_app():
                         html.Nav(
                             className="site-nav",
                             children=[
-                                dcc.Link(page["name"], href=page["relative_path"])
+                                dcc.Link(page["name"], href=page["relative_path"], refresh=True)
                                 for page in dash.page_registry.values()
                             ],
                         ),

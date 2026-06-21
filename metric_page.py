@@ -17,17 +17,38 @@ from theme import GRID, style_figure
 
 METRICS = ["wall_time", "user_time", "system_time"]
 
+# Timer ids encode their hierarchy as ``parent§child§grandchild``. Splitting on
+# this separator and indenting each level one tab deeper renders the nesting.
+NESTING_SEP = "§"
+
+# Preserve the newlines and tabs from ``_nest_label`` when rendering. tab-size
+# keeps each indent compact rather than the 8-space browser default.
+NESTED_STYLE = {"whiteSpace": "pre", "tabSize": 2}
+
+
+def _nest_label(text):
+    """Render a ``§``-separated timer id as indented, nested lines.
+
+    Each segment after the first starts a new line indented one tab deeper, so
+    the timer's place in the hierarchy reads at a glance. Must be paired with
+    ``NESTED_STYLE`` (or equivalent CSS) so the whitespace is not collapsed.
+    """
+    parts = text.split(NESTING_SEP)
+    return "\n".join("\t" * 2 * depth + part for depth, part in enumerate(parts))
+
 
 def _dropdown_for_level(level, column, current=None):
     """Return ``(options, value)`` for the dropdown at the given slider level.
 
     Options are the distinct values of ``column`` that have data at exactly
-    ``level`` (queried from the data layer). The current selection is preserved
-    when it is still valid, otherwise it falls back to the first option (or
-    ``None`` when empty).
+    ``level`` (queried from the data layer), each labelled as a nested,
+    indented timer name while keeping the raw value. The current selection is
+    preserved when it is still valid, otherwise it falls back to the first
+    option (or ``None`` when empty).
     """
-    options = get_options(column, level)
-    value = current if current in options else (options[0] if options else None)
+    values = get_options(column, level)
+    value = current if current in values else (values[0] if values else None)
+    options = [{"label": _nest_label(v), "value": v} for v in values]
     return options, value
 
 
@@ -66,7 +87,7 @@ def _graph_group(label, group, metric):
     style_figure(fig)
     return html.Div(
         className="graph-group",
-        children=[html.H3(label), dcc.Graph(figure=fig)],
+        children=[html.H3(_nest_label(label), style=NESTED_STYLE), dcc.Graph(figure=fig)],
     )
 
 
