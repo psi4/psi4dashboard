@@ -65,6 +65,20 @@ def get_groups(select_column, value, level, group_column):
     return list(df.groupby(group_column))
 
 
+def get_children(parent_id, test_name):
+    """Return the child rows of ``parent_id`` within ``test_name``, by version.
+
+    Children are rows naming this timer as their parent; they sit one level
+    deeper. Used to render a filled-area breakdown for non-leaf timers. Returns
+    an empty frame for a leaf timer (and ``None`` when no data is loaded).
+    """
+    df = _dataframe
+    if df is None:
+        return None
+    df = df[(df["parent_id"] == parent_id) & (df["test_name"] == test_name)]
+    return df.sort_values("version")
+
+
 def get_dataframe():
     """Read timers.json file into DataFrame.
     """
@@ -73,9 +87,5 @@ def get_dataframe():
 
         # Each entry in the "timers" array becomes a row, with its keys as columns.
     df = pd.json_normalize(payload["timers"])
-
-    # A timer is "child free" when no other row names it as a parent.
-    parent_ids = set(df["parent_id"].dropna())
-    df["child_free"] = ~df["timer_id"].isin(parent_ids)
 
     return df

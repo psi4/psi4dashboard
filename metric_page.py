@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 import plotly.express as px
 from dash import Input, Output, State, callback, dcc, html
 
-from data import get_groups, get_levels, get_options
+from data import get_children, get_groups, get_levels, get_options
 from theme import GRID, style_figure
 
 METRICS = ["wall_time", "user_time", "system_time"]
@@ -32,15 +32,31 @@ def _dropdown_for_level(level, column, current=None):
 
 
 def _graph_group(label, group, metric):
-    """Build one card: a heading plus the line chart for the selected metric."""
-    fig = px.line(
-        group,
-        x="version",
-        y=metric,
-        color="timer_name",
-        markers=True,
-        hover_data=["n_calls"],
-    )
+    """Build one card: a heading plus the chart for the selected metric.
+
+    If the card's timer has children, show a filled-area breakdown of those
+    children (colored by child timer_name); otherwise a single line.
+    """
+    timer_id = group["timer_id"].iloc[0]
+    test_name = group["test_name"].iloc[0]
+    children = get_children(timer_id, test_name)
+    if children is not None and not children.empty:
+        fig = px.area(
+            children,
+            x="version",
+            y=metric,
+            color="timer_name",
+            markers=True,
+            hover_data=["n_calls"],
+        )
+    else:
+        fig = px.line(
+            group,
+            x="version",
+            y=metric,
+            markers=True,
+            hover_data=["n_calls"],
+        )
     # Show every version as a discrete tick on the x-axis.
     fig.update_xaxes(tickmode="linear", dtick=1)
     # Anchor the y-axis at 0 so bars/lines are read against a common baseline.
