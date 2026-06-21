@@ -11,6 +11,9 @@
     --accent-blue-light: #5f99cf;
     --accent-teal: #2c9091;
     --accent-green: #6cb670;
+    /* Dash's default slider-thumb fill (--Dash-Fill-Interactive-Strong). Named
+       here so the slider circle and the selected metric tab share one color. */
+    --accent-purple: #7f4bc4;
     --text-heading: #afbac4;
     --text-body: #8f98a1;
     --border: #4e595f;
@@ -239,6 +242,31 @@ input[type="checkbox"] + label {
 .dash-slider-mark::before,
 .dash-slider-mark-outside-selection::before {
     background-color: var(--text-body) !important;
+}
+
+/* The draggable handle (circle). Dash fills it with
+   ``--Dash-Fill-Interactive-Strong`` by default; pin it to our named variable
+   so it stays in sync with the selected tab below. */
+.dash-slider-thumb {
+    background-color: var(--accent-purple) !important;
+    /* Dash positions the tick marks assuming a 16px-wide thumb, but the handle
+       is 16px plus a 2px border, so its content-box renders 20px wide; Radix
+       measures that and offsets the thumb by half of it, drifting ~2px off the
+       ticks toward the slider ends. Border-box makes the rendered width exactly
+       16px so the thumb stays centered on every tick. */
+    box-sizing: border-box;
+}
+
+/* ---- Tabs (metric selector) ---- */
+
+/* Dash fills the selected tab with a light ``--Dash-Fill-Inverse-Strong`` that
+   clashes with the dark theme. Fill it (and its top accent) with the same color
+   as the slider circle instead, with white text for contrast. */
+.tab--selected,
+.tab--selected:hover {
+    background-color: var(--accent-purple) !important;
+    border-top-color: var(--accent-purple) !important;
+    color: #fff !important;
 }
 
 /* Plotly graphs sit on the card background */

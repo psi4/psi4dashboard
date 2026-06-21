@@ -154,7 +154,7 @@ def build_metric_page(
                     options=options,
                     value=value,
                     placeholder=placeholder,
-                    style={"marginTop": "1.5rem"},
+                    style={"marginTop": "1rem"},
                 ),
                 dcc.Tabs(
                     id=metrics_id,
@@ -165,10 +165,9 @@ def build_metric_page(
                     ],
                     colors={
                         "border": GRID,
-                        "primary": "#5f99cf",
                         "background": "#292f36",
                     },
-                    style={"margin": "1rem 0 0.5rem"},
+                    style={"margin": "1rem 0 1rem"},
                 ),
                 dcc.Loading(
                     children=html.Div(id=graphs_id),
