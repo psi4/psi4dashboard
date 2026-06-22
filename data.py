@@ -7,10 +7,15 @@ callbacks read filtered slices of it lazily at request time.
 """
 
 import json
+from pathlib import Path
 
 import pandas as pd
 
+DATA_DIR = Path("data")
+
 _dataframe = None
+_scf_labels = None
+_scf_accels = None
 
 
 def set_dataframe(df):
@@ -18,6 +23,11 @@ def set_dataframe(df):
     global _dataframe
     _dataframe = df
 
+def get_scf_labels():
+    return _scf_labels
+
+def get_scf_accels():
+    return _scf_accels
 
 def get_data(level=None, column=None, value=None):
     """Return the stored rows narrowed to the requested slice (or None).
@@ -89,3 +99,46 @@ def get_dataframe():
     df = pd.json_normalize(payload["timers"])
 
     return df
+
+def set_scf_labels(df):
+    global _scf_labels
+    data = explode_dict(df, "scf.iterations_by_label", "label", "iterations")
+    _scf_labels = data[["test_name", "version", "label", "iterations"]]
+
+def set_scf_accels(df):
+    global _scf_accels
+    data = explode_dict(df, "scf.accelerators", "accelerator", "iterations")
+    _scf_accels = data[["test_name", "version", "accelerator", "iterations"]]
+
+
+def load_scf_iterations(data_dir=DATA_DIR):
+    """Return one DataFrame combining all scf_iterations.json files.
+
+    Walks ``data_dir`` for every ``scf_iterations.json``, normalizes the nested
+    JSON into flat columns (only the first level), and tags each row with
+    ``version`` = the name of the directory immediately containing the file.
+    """
+    rows = []
+    for path in sorted(data_dir.glob("**/scf_iterations.json")):
+        with open(path) as f:
+            payload = json.load(f)
+        row = pd.json_normalize(payload, max_level=1)
+        row["version"] = path.parent.name
+        rows.append(row)
+
+    if not rows:
+        return pd.DataFrame()
+    return pd.concat(rows, ignore_index=True)
+
+
+def explode_dict(df, col, key_name, value_name):
+    """ Breaks down the ``col`` with dictionary entry into two columns: ``key_name``
+    and ``value_name``. The remaining columns are duplicated for dicts with multiple
+    entries
+    """
+    m = pd.DataFrame([*df[col]], df.index).stack()\
+          .rename_axis([None, key_name]).reset_index(1, name=value_name)
+
+    out = df.drop(col, axis=1).join(m)
+
+    return out.dropna()
