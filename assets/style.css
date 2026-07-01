@@ -269,7 +269,20 @@ input[type="checkbox"] + label {
     color: #fff !important;
 }
 
-/* Plotly graphs sit on the card background */
+/* Plotly graphs sit on the card background. Reserve a strip of headroom above
+   the plot so the modebar can live there instead of overlapping the chart. */
 .js-plotly-plot {
-    margin-top: 0.5rem;
+    margin-top: 2.5rem;
+    /* The modebar is moved above the plot (below); let it show rather than be
+       clipped by the plot container. */
+    overflow: visible !important;
+}
+
+.js-plotly-plot .svg-container {
+    overflow: visible !important;
+}
+
+/* Lift the modebar fully above the plot into the headroom reserved above. */
+.js-plotly-plot .modebar-container {
+    top: -2rem !important;
 }

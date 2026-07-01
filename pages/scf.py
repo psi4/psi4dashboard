@@ -11,18 +11,16 @@ dash.register_page(__name__, path="/scf", name="SCF")
 
 
 def _area_group(test_name, group):
-    """Build one card: a heading plus a filled-area chart for a single test.
+    """Build one card: a heading plus a chart for a single test.
 
-    Iterations are stacked by label across versions so each label's
-    contribution reads against a common baseline.
+    With more than one label, iterations are stacked by label as a filled-area
+    chart so each label's contribution reads against a common baseline. With a
+    single label there is nothing to stack, so a plain line chart is clearer.
     """
-    fig = px.area(
-        group,
-        x="version",
-        y="iterations",
-        color="label",
-        markers=True,
-    )
+    if group["label"].nunique() > 1:
+        fig = px.area(group, x="version", y="iterations", color="label", markers=True)
+    else:
+        fig = px.line(group, x="version", y="iterations", color="label", markers=True)
     # Show every version as a discrete tick on the x-axis.
     fig.update_xaxes(tickmode="linear", dtick=1)
     # Anchor the y-axis at 0 so areas read against a common baseline.
