@@ -2,9 +2,9 @@
 
 The Tests and Timers pages render the same scaffold — a level slider, a
 dropdown, a metric tab strip, and a grid of per-version line charts. Each
-builder here returns one of those pieces so a page assembles its own layout,
-while ``page_ids`` and ``resolve_level`` keep the element ids and slider seeding
-identical across both pages.
+builder here returns one of those pieces so a page assembles its own layout.
+``page_ids`` namespaces the element ids any page needs, and ``resolve_level``
+seeds the slider identically across the two metric pages.
 """
 
 from collections import namedtuple
@@ -16,21 +16,14 @@ from theme import GRID
 
 METRICS = ["wall_time", "user_time", "system_time"]
 
-# The element ids for one page, derived from its prefix. Sharing this between a
-# page's layout builders and its callbacks keeps both referring to the same ids
-# without hand-duplicating the id strings.
-PageIds = namedtuple("PageIds", ["url", "slider", "dropdown", "metrics", "graphs"])
+def page_ids(prefix, *roles):
+    """Return a namedtuple of ``prefix``-namespaced ids, one attribute per role.
 
-
-def page_ids(id_prefix):
-    """Return the ``PageIds`` for a page, each id namespaced by ``id_prefix``."""
-    return PageIds(
-        url=f"{id_prefix}-url",
-        slider=f"{id_prefix}-slider",
-        dropdown=f"{id_prefix}-dropdown",
-        metrics=f"{id_prefix}-metrics",
-        graphs=f"{id_prefix}-graphs",
-    )
+    e.g. ``page_ids("scf", "url", "graphs").graphs == "scf-graphs"``. A page
+    names exactly the roles it renders, so its layout builders and its callbacks
+    share the same ids without hand-duplicating the strings.
+    """
+    return namedtuple("PageIds", roles)(*(f"{prefix}-{role}" for role in roles))
 
 
 def resolve_level(level):

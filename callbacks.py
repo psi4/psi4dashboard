@@ -10,8 +10,9 @@ from urllib.parse import urlencode
 
 import plotly.express as px
 from dash import dcc, html
+from packaging.version import Version
 
-from data import get_children, get_groups, get_options
+from data import get_children, get_groups, get_options, get_scf_data, get_timing_data
 from theme import style_figure
 
 # Timer ids encode their hierarchy as ``parent;child;grandchild``. Splitting on
@@ -49,13 +50,27 @@ def dropdown_for_level(level, column, current=None):
     return options, value
 
 
-def graph_group(heading, df, y, color=None, area=False, hover_data=None, heading_style=None):
+def card_y_max(df, y, area):
+    """Return the tallest y value a card's chart will reach, or 0 when empty.
+
+    For a stacked area chart the visible height at each version is the sum of the
+    series there, so the peak is the largest per-version total; a single line just
+    peaks at its own maximum. Used to give every card on a page one shared y range.
+    """
+    if df is None or df.empty or y not in df:
+        return 0
+    peak = df.groupby("psi4_version")[y].sum().max() if area else df[y].max()
+    return 0 if peak != peak else peak  # coerce NaN (all-empty) to 0
+
+
+def graph_group(heading, df, y, color=None, area=False, hover_data=None, heading_style=None, y_max=None):
     """Build one card: a heading plus an area or line chart of ``df`` over versions.
 
     ``area`` selects a stacked filled-area chart (a multi-series breakdown)
     rather than a single line; ``y``/``color``/``hover_data`` pick the plotted
     columns. ``heading_style`` styles the card heading (e.g. to preserve the
-    indentation of a nested timer name).
+    indentation of a nested timer name). ``y_max`` fixes the top of the y-axis so
+    every card on a page shares one scale; when omitted the axis auto-scales.
     """
     plot = px.area if area else px.line
     fig = plot(
@@ -68,8 +83,13 @@ def graph_group(heading, df, y, color=None, area=False, hover_data=None, heading
     )
     # Show every version as a discrete tick on the x-axis.
     fig.update_xaxes(tickmode="linear", dtick=1)
-    # Anchor the y-axis at 0 so areas/lines are read against a common baseline.
-    fig.update_yaxes(rangemode="tozero")
+    if y_max and y_max > 0:
+        # Pin the top to the page-wide max (with a little headroom so the peak
+        # marker isn't clipped) so cards are read against a common scale.
+        fig.update_yaxes(range=[0, y_max * 1.05])
+    else:
+        # Anchor the y-axis at 0 so areas/lines are read against a common baseline.
+        fig.update_yaxes(rangemode="tozero")
     # Keep each graph short so more fit on screen at once.
     fig.update_layout(height=250, margin=dict(l=40, r=10, t=10, b=30))
     style_figure(fig)
@@ -97,28 +117,51 @@ def update_dropdown(level, current, select_column):
     return dropdown_for_level(level, select_column, current)
 
 
-def update_graphs(value, metric, level, select_column, group_column):
-    """Return one graph card per ``group_column`` value for the current selection.
+def update_graphs(plots, y, hover_data=None, heading_style=None, unify_y=False):
+    """Build one card per plot spec, optionally sharing a single page-wide y range.
 
-    A card whose timer has children shows a filled-area breakdown of those
-    children (colored by child timer_name); a leaf timer shows a single line.
-    Rows are filtered and sorted by the data layer so each line follows versions.
+    ``plots`` is a list of ``(heading, df, area, color)`` specs — one per card —
+    resolved by the caller (see ``timer_plots`` for the Tests/Timers pages, or the
+    SCF page for its own). Column ``y`` is plotted for every card; ``hover_data``
+    and ``heading_style`` apply uniformly. When ``unify_y`` is set the y-axis top
+    is fixed to the tallest card's peak so the cards read against a common scale;
+    otherwise each card auto-scales to its own data.
     """
-    cards = []
-    for key, group in get_groups(select_column, value, level, group_column):
+    y_max = max((card_y_max(df, y, area) for _, df, area, _ in plots), default=0) if unify_y else None
+    return [
+        graph_group(
+            heading,
+            df,
+            y,
+            color=color,
+            area=area,
+            hover_data=hover_data,
+            heading_style=heading_style,
+            y_max=y_max,
+        )
+        for heading, df, area, color in plots
+    ]
+
+
+def timer_plots(value, level, select_column, group_column):
+    """Resolve the ``(heading, df, area, color)`` card specs for a timer/test page.
+
+    One spec per ``group_column`` value for the current selection: a timer with
+    children yields a filled-area breakdown of those children (colored by child
+    timer_name); a leaf timer yields a single line. Headings are the nested,
+    indented timer names. Feed the result to ``update_graphs``.
+    """
+    df = get_timing_data(level=level, column=select_column, value=value)
+    plots = []
+    for key, group in get_groups(df, group_column):
         timer_id = group["timer_id"].iloc[0]
         test_name = group["test_name"].iloc[0]
         children = get_children(timer_id, test_name)
         has_children = children is not None and not children.empty
-        cards.append(
-            graph_group(
-                nest_label(key),
-                children if has_children else group,
-                metric,
-                color="timer_name" if has_children else None,
-                area=has_children,
-                hover_data=["n_calls"],
-                heading_style=NESTED_STYLE,
-            )
-        )
-    return cards
+        plots.append((
+            nest_label(key),
+            children if has_children else group,
+            has_children,
+            "timer_name" if has_children else None,
+        ))
+    return plots

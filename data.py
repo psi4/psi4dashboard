@@ -93,14 +93,13 @@ def get_options(column, level):
     return sorted(df[column].unique()) if df is not None else []
 
 
-def get_groups(select_column, value, level, group_column):
-    """Return chart-ready rows grouped for rendering.
+def get_groups(df, group_column):
+    """Partition ``df`` into chart-ready groups for rendering.
 
-    Rows are filtered to ``select_column == value`` at ``level``, sorted by
-    ``version``, and partitioned by ``group_column`` into ``(key, group)`` pairs
-    (one per card). Returns an empty list when there is no data or no match.
+    ``df`` is partitioned by ``group_column`` into ``(key, group)`` pairs (one
+    per card). Returns an empty list when there is no data. The caller supplies
+    the (already filtered and sorted) frame, so this works with any DataFrame.
     """
-    df = get_timing_data(level=level, column=select_column, value=value)
     if df is None or df.empty:
         return []
     return list(df.groupby(group_column))

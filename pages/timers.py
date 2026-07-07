@@ -13,7 +13,7 @@ from components import (
     select_dropdown,
 )
 
-IDS = page_ids("timers")
+IDS = page_ids("timers", "url", "slider", "dropdown", "metrics", "graphs")
 
 
 def layout(level=None, **kwargs):
@@ -65,7 +65,8 @@ def update_dropdown(level, current):
     Input(IDS.slider, "value"),
 )
 def update_graphs(value, metric, level):
-    return callbacks.update_graphs(value, metric, level, "timer_id", "test_name")
+    plots = callbacks.timer_plots(value, level, "timer_id", "test_name")
+    return callbacks.update_graphs(plots, metric, hover_data=["n_calls"], heading_style=callbacks.NESTED_STYLE)
 
 
 dash.register_page(__name__, path="/timers", name="Timers", layout=layout)
