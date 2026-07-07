@@ -64,7 +64,7 @@ def _graph_group(label, group, metric):
     if children is not None and not children.empty:
         fig = px.area(
             children,
-            x="version",
+            x="psi4_version",
             y=metric,
             color="timer_name",
             markers=True,
@@ -73,7 +73,7 @@ def _graph_group(label, group, metric):
     else:
         fig = px.line(
             group,
-            x="version",
+            x="psi4_version",
             y=metric,
             markers=True,
             hover_data=["n_calls"],

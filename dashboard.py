@@ -9,7 +9,8 @@ import argparse
 import dash
 from dash import Dash, dcc, html
 
-from data import get_dataframe, set_dataframe, load_scf_iterations, set_scf_accels, set_scf_labels
+from data import load_timing_dataframe, load_scf_dataframe, load_parallelism_dataframe, \
+    set_timing_dataframe, set_scf_dataframe, set_parallelism_dataframe
 
 
 def parse_address(address):
@@ -20,10 +21,9 @@ def parse_address(address):
 
 def create_app():
     """Build the multi-page Dash app from the .csv files found in the given path."""
-    set_dataframe(get_dataframe())
-    df = load_scf_iterations()
-    set_scf_labels(df)
-    set_scf_accels(df)
+    set_timing_dataframe(load_timing_dataframe())
+    set_scf_dataframe(load_scf_dataframe())
+    set_parallelism_dataframe(load_parallelism_dataframe())
 
     app = Dash(__name__, use_pages=True, suppress_callback_exceptions=True)
     app.layout = html.Div(

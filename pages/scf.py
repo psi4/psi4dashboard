@@ -3,8 +3,9 @@
 import dash
 import plotly.express as px
 from dash import dcc, html
+from packaging.version import Version
 
-from data import get_scf_labels
+from data import get_scf_data
 from theme import style_figure
 
 dash.register_page(__name__, path="/scf", name="SCF")
@@ -18,9 +19,9 @@ def _area_group(test_name, group):
     single label there is nothing to stack, so a plain line chart is clearer.
     """
     if group["label"].nunique() > 1:
-        fig = px.area(group, x="version", y="iterations", color="label", markers=True)
+        fig = px.area(group, x="psi4_version", y="iterations", color="label", markers=True)
     else:
-        fig = px.line(group, x="version", y="iterations", color="label", markers=True)
+        fig = px.line(group, x="psi4_version", y="iterations", color="label", markers=True)
     # Show every version as a discrete tick on the x-axis.
     fig.update_xaxes(tickmode="linear", dtick=1)
     # Anchor the y-axis at 0 so areas read against a common baseline.
@@ -35,7 +36,7 @@ def _area_group(test_name, group):
 
 
 def layout(**kwargs):
-    df = get_scf_labels()
+    df = get_scf_data()
     if df is None or df.empty:
         return html.Div(children=[html.H2("SCF"), html.P("No SCF data available.")])
 
@@ -44,7 +45,7 @@ def layout(**kwargs):
             html.H2("SCF"),
             *[
                 _area_group(test_name, group)
-                for test_name, group in df.sort_values("version").groupby("test_name")
+                for test_name, group in df.sort_values("psi4_version", key=lambda x: x.map(Version)).groupby("test_name")
             ],
         ]
     )
