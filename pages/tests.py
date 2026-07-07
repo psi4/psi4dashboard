@@ -1,19 +1,71 @@
 """Tests page: per-test line charts of timer metrics, served at /tests."""
 
 import dash
+from dash import Input, Output, State, callback, dcc, html
 
-from metric_page import build_metric_page
-
-dash.register_page(
-    __name__,
-    path="/tests",
-    name="Tests",
-    layout=build_metric_page(
-        id_prefix="tests",
-        title="Tests Dashboard",
-        placeholder="Select a test",
-        select_column="test_name",
-        group_column="timer_id",
-        query_param="test_name",
-    ),
+import callbacks
+from components import (
+    graphs_container,
+    level_slider,
+    metric_tabs,
+    page_ids,
+    resolve_level,
+    select_dropdown,
 )
+
+IDS = page_ids("tests")
+
+
+def layout(level=None, **kwargs):
+    """Build the page layout, seeding the slider and dropdown from the URL.
+
+    ``level`` and the dropdown selection (under the ``test_name`` key) come from
+    the URL query string, so a shared link restores both the slider position and
+    the dropdown choice.
+    """
+    levels, selected = resolve_level(level)
+    options, value = callbacks.dropdown_for_level(selected, "test_name", kwargs.get("test_name"))
+    return html.Div(
+        children=[
+            dcc.Location(id=IDS.url, refresh=False),
+            html.H2("Tests Dashboard"),
+            level_slider(IDS.slider, levels, selected),
+            select_dropdown(IDS.dropdown, options, value, "Select a test"),
+            metric_tabs(IDS.metrics),
+            graphs_container(IDS.graphs),
+        ]
+    )
+
+
+@callback(
+    Output(IDS.url, "search"),
+    Input(IDS.slider, "value"),
+    Input(IDS.dropdown, "value"),
+    prevent_initial_call=True,
+)
+def update_url_query(level, selection):
+    return callbacks.update_url_query(level, selection, "test_name")
+
+
+@callback(
+    Output(IDS.dropdown, "options"),
+    Output(IDS.dropdown, "value"),
+    Input(IDS.slider, "value"),
+    State(IDS.dropdown, "value"),
+    prevent_initial_call=True,
+)
+def update_dropdown(level, current):
+    return callbacks.update_dropdown(level, current, "test_name")
+
+
+@callback(
+    Output(IDS.graphs, "children"),
+    Input(IDS.dropdown, "value"),
+    Input(IDS.metrics, "value"),
+    Input(IDS.slider, "value"),
+)
+def update_graphs(value, metric, level):
+    return callbacks.update_graphs(value, metric, level, "test_name", "timer_id")
+
+
+dash.register_page(__name__, path="/tests", name="Tests", layout=layout)

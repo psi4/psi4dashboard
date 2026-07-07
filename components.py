@@ -1,0 +1,110 @@
+"""Dash component builders and layout seeding for the metric line-chart pages.
+
+The Tests and Timers pages render the same scaffold — a level slider, a
+dropdown, a metric tab strip, and a grid of per-version line charts. Each
+builder here returns one of those pieces so a page assembles its own layout,
+while ``page_ids`` and ``resolve_level`` keep the element ids and slider seeding
+identical across both pages.
+"""
+
+from collections import namedtuple
+
+from dash import dcc, html
+
+from data import get_levels
+from theme import GRID
+
+METRICS = ["wall_time", "user_time", "system_time"]
+
+# The element ids for one page, derived from its prefix. Sharing this between a
+# page's layout builders and its callbacks keeps both referring to the same ids
+# without hand-duplicating the id strings.
+PageIds = namedtuple("PageIds", ["url", "slider", "dropdown", "metrics", "graphs"])
+
+
+def page_ids(id_prefix):
+    """Return the ``PageIds`` for a page, each id namespaced by ``id_prefix``."""
+    return PageIds(
+        url=f"{id_prefix}-url",
+        slider=f"{id_prefix}-slider",
+        dropdown=f"{id_prefix}-dropdown",
+        metrics=f"{id_prefix}-metrics",
+        graphs=f"{id_prefix}-graphs",
+    )
+
+
+def resolve_level(level):
+    """Return ``(levels, selected)`` for seeding the slider from the URL.
+
+    ``levels`` is the sorted distinct hierarchy levels; ``selected`` is the
+    slider's initial value — ``level`` from the URL when present, otherwise the
+    minimum (top of the hierarchy), falling back to 0 when there is no data.
+    """
+    levels = get_levels()
+    if level is not None:
+        selected = int(level)
+    else:
+        selected = int(levels[0]) if levels else 0
+    return levels, selected
+
+
+def level_slider(slider_id, levels, value):
+    """Build the hierarchy-level slider spanning ``levels``, set to ``value``."""
+    level_min = int(levels[0]) if levels else 0
+    level_max = int(levels[-1]) if levels else 0
+    return dcc.Slider(
+        id=slider_id,
+        min=level_min,
+        max=level_max,
+        step=1,
+        value=value,
+        marks={int(v): str(int(v)) for v in levels},
+        allow_direct_input=False,
+    )
+
+
+def select_dropdown(dropdown_id, options, value, placeholder):
+    """Build the value-selecting dropdown, seeded with ``options``/``value``."""
+    return dcc.Dropdown(
+        id=dropdown_id,
+        options=options,
+        value=value,
+        placeholder=placeholder,
+        style={"marginTop": "1rem"},
+    )
+
+
+def metric_tabs(metrics_id):
+    """Build the tab strip that picks which metric the charts plot."""
+    return dcc.Tabs(
+        id=metrics_id,
+        value=METRICS[0],
+        children=[
+            dcc.Tab(label=m.replace("_", " ").title(), value=m)
+            for m in METRICS
+        ],
+        colors={
+            "border": GRID,
+            "background": "#292f36",
+        },
+        style={"margin": "1rem 0 1rem"},
+    )
+
+
+def graphs_container(graphs_id, children=None):
+    """Build the loading-wrapped container the chart grid renders into.
+
+    Interactive pages leave it empty and populate ``html.Div(id=graphs_id)``
+    from a callback; static pages (e.g. SCF) pass their pre-built cards as
+    ``children`` to render them directly in the layout.
+    """
+    return dcc.Loading(
+        children=html.Div(id=graphs_id, children=children),
+        type="circle",
+        color="#5f99cf",
+        # The spinner is flex-centered over the full height of the (tall) graph
+        # grid, so on an update it lands in the vertical middle — off-screen.
+        # Align it to the top of the grid, just under the controls, where it
+        # stays visible.
+        style={"alignSelf": "flex-start", "marginTop": "1rem"},
+    )
