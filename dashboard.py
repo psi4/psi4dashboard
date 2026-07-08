@@ -15,13 +15,13 @@ from data import load_timing_dataframe, load_scf_dataframe, load_parallelism_dat
 
 
 def parse_address(address):
-    """Split an "host:port" string into (host, port)."""
+    """Split a "host:port" string into (host, port)."""
     host, _, port = address.partition(":")
     return host or None, int(port) if port else None
 
 
 def create_app():
-    """Build the multi-page Dash app from the .csv files found in the given path."""
+    """Load every dataset once and build the multi-page Dash app."""
     set_timing_dataframe(load_timing_dataframe())
     set_scf_dataframe(load_scf_dataframe())
     set_parallelism_dataframe(load_parallelism_dataframe())

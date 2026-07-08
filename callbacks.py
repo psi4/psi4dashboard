@@ -26,7 +26,7 @@ from data import (
 from theme import ACCELERATOR_COLORS, style_figure
 
 # Timer ids encode their hierarchy as ``parent;child;grandchild``. Splitting on
-# this separator and indenting each level one tab deeper renders the nesting.
+# this separator and indenting each level two tabs deeper renders the nesting.
 NESTING_SEP = ";"
 
 # Preserve the newlines and tabs from ``nest_label`` when rendering. tab-size
@@ -44,7 +44,7 @@ SCF_ACCEL_CONTENT = "scf-accel-content"
 def nest_label(text):
     """Render a ``;``-separated timer id as indented, nested lines.
 
-    Each segment after the first starts a new line indented one tab deeper, so
+    Each segment after the first starts a new line indented two tabs deeper, so
     the timer's place in the hierarchy reads at a glance. Must be paired with
     ``NESTED_STYLE`` (or equivalent CSS) so the whitespace is not collapsed.
     """
