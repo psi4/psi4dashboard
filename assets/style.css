@@ -78,12 +78,22 @@ a:hover {
 }
 
 .site-brand {
+    display: flex;
+    align-items: center;
     margin: 0;
     font-family: "Dosis", sans-serif;
     font-weight: 700;
     font-size: 1.9rem;
     letter-spacing: 1px;
     color: var(--text-heading);
+    text-decoration: none;
+}
+
+/* The brand is now a link wrapping an <h1>; reset the heading's UA font-size,
+   weight and margins so it inherits the .site-brand styling above. */
+.site-brand h1 {
+    margin: 0;
+    font: inherit;
 }
 
 .site-brand .brand-accent {

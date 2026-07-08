@@ -27,6 +27,10 @@ def create_app():
     set_parallelism_dataframe(load_parallelism_dataframe())
 
     app = Dash(__name__, use_pages=True, suppress_callback_exceptions=True)
+    # Dash attaches its own handler to app.logger (the "dash.dash" logger) and
+    # leaves propagate=True, so its messages would also hit our root handler and
+    # print twice. Keep Dash's native banner, drop the propagated duplicate.
+    app.logger.propagate = False
     app.layout = html.Div(
         children=[
             html.Header(
@@ -34,19 +38,24 @@ def create_app():
                 children=html.Div(
                     className="header-inner",
                     children=[
-                        html.H1(
+                        dcc.Link(
                             className="site-brand",
-                            children=[
-                                "Psi",
-                                html.Span("4", className="brand-accent"),
-                                " Dashboard",
-                            ],
+                            href="/",
+                            refresh=True,
+                            children=html.H1(
+                                children=[
+                                    "Psi",
+                                    html.Span("4", className="brand-accent"),
+                                    " Dashboard",
+                                ],
+                            ),
                         ),
                         html.Nav(
                             className="site-nav",
                             children=[
                                 dcc.Link(page["name"], href=page["relative_path"], refresh=True)
                                 for page in dash.page_registry.values()
+                                if page["path"] != "/"
                             ],
                         ),
                     ],

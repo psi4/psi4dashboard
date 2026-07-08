@@ -124,7 +124,7 @@ def get_parallelism_versions():
     df = get_parallelism_data()
     if df is None or df.empty:
         return []
-    return sorted(df["version"].dropna().unique())
+    return sorted(df["version"].dropna().unique(), key=Version)
 
 
 def get_parallelism_tests(version):
@@ -203,7 +203,7 @@ def get_timing_levels():
 def get_timing_options(column, level):
     """Return the sorted distinct values of ``column`` among rows at ``level``.
 
-    Used to populate the dropdown for a given slider level.
+    Used to populate the dropdown of timer/test page for a given slider level.
     """
     df = get_timing_slice(level=level)
     return sorted(df[column].unique()) if df is not None else []

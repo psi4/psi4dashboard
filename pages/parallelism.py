@@ -23,7 +23,7 @@ def layout(level=None, version=None, test_name=None, **kwargs):
     version, its test, and the slider position together.
     """
     versions = get_parallelism_versions()
-    sel_version = version if version in versions else (versions[0] if versions else None)
+    sel_version = version if version in versions else (versions[-1] if versions else None)
     tests = get_parallelism_tests(sel_version)
     sel_test = test_name if test_name in tests else (tests[0] if tests else None)
     levels, sel_level = resolve_level(level, get_parallelism_levels())
