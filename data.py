@@ -20,10 +20,13 @@ while parallelism uses ``version`` and adds ``cores`` (and carries no
 """
 
 import json
+import logging
 from pathlib import Path
 from packaging.version import Version
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 DATA_DIR = Path("../psi4dashboard-data/data/")
 
@@ -70,6 +73,7 @@ def load_dataframe(filename, df_creator, columns):
             dfs.append(df)
 
     if not dfs:
+        logger.warning("No valid %r files under %s; returning an empty frame", filename, DATA_DIR)
         return pd.DataFrame(columns=columns)
 
     return pd.concat(dfs)
@@ -261,11 +265,11 @@ def create_timer_df(file: Path):
     required_keys = {'timers', 'psi4_version', 'psi4_commit_hash'}
 
     if not (required_keys <= payload.keys()):
-        #print(f"not all required keys are in {file}")
+        logger.debug("Skipping %s: missing required keys %s", file, required_keys - payload.keys())
         return
-    
+
     if (len(payload["timers"]) == 0):
-        #print(f"no timing data in {file}")
+        logger.debug("Skipping %s: no timer data", file)
         return
 
     payload["test_name"] = file.parents[1].name
@@ -326,12 +330,12 @@ def create_scf_df(path: Path):
 
     required_keys = {"scf", "psi4_version", "psi4_commit_hash"}
     if not (required_keys <= payload.keys()):
-        # not a well-formed scf_iterations payload
+        logger.debug("Skipping %s: missing required keys %s", path, required_keys - payload.keys())
         return
 
     scf_block = payload["scf"]
     if not isinstance(scf_block, dict) or not scf_block.get("iterations_by_label"):
-        # no per-label iteration data to build rows from
+        logger.debug("Skipping %s: no per-label SCF iteration data", path)
         return
 
     raw_df = pd.DataFrame([payload]) # must keep brackets to read it as single entry
@@ -384,6 +388,7 @@ def create_parallelism_df(path: Path):
     # <test>.json.n<cores>.out convention
     name_parts = f_name.rsplit('.', 2)
     if len(name_parts) < 3 or not name_parts[1].startswith('n') or not name_parts[1][1:].isdigit():
+        logger.debug("Skipping %s: filename does not match <test>.json.n<cores>.out", path)
         return
     n_cores = int(name_parts[1][1:])
 
@@ -394,14 +399,14 @@ def create_parallelism_df(path: Path):
 
     data = (payload.get('native_files') or {}).get('timer.json') # timer.json from the file
     if version is None or not data:
-        # missing provenance version or timer data
+        logger.debug("Skipping %s: missing provenance version or timer data", path)
         return
 
     # turn the timer.json into a pandas dataframe, and fix the layout of the dataframe
     df = pd.DataFrame(data).transpose().reset_index()
 
     if df.shape[1] != 5:
-        # timer entries don't have the expected 4 metric fields
+        logger.debug("Skipping %s: timer entries lack the expected 4 metric fields", path)
         return
     
     # required to rename timer_id column 

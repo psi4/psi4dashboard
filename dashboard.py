@@ -5,6 +5,7 @@ Usage:
 """
 
 import argparse
+import logging
 
 import dash
 from dash import Dash, dcc, html
@@ -58,6 +59,11 @@ def create_app():
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
     parser = argparse.ArgumentParser(description="Run a Dash app on a server.")
     parser.add_argument(
         "-a",
