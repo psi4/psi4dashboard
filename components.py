@@ -98,6 +98,11 @@ def graphs_container(graphs_id, children=None):
         children=html.Div(id=graphs_id, children=children),
         type="circle",
         color="#5f99cf",
+        # Only spin for the whole-grid rebuild (this Div's own children). Without
+        # this, dcc.Loading reacts to *any* callback output in its subtree, so a
+        # nested per-card callback (e.g. the SCF accelerator toggle) would blank
+        # and re-render the entire grid — reading as a full-page reload.
+        target_components={graphs_id: "children"},
         # The spinner is flex-centered over the full height of the (tall) graph
         # grid, so on an update it lands in the vertical middle — off-screen.
         # Align it to the top of the grid, just under the controls, where it

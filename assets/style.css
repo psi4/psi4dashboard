@@ -139,6 +139,28 @@ a:hover {
     padding-left: 0.6rem;
 }
 
+/* Collapsible "View accelerator breakdown" disclosure on the SCF cards. */
+.graph-group details > summary {
+    cursor: pointer;
+    margin-top: 0.75rem;
+    color: var(--accent-blue-light);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+.graph-group details > summary:hover {
+    color: var(--accent-teal);
+}
+
+/* The accelerator breakdown is itself a graph-group; nested inside a card it
+   drops the card chrome so it doesn't read as a heavy card-in-a-card. */
+.graph-group .graph-group {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0.5rem 0 0;
+}
+
 .btn-link {
     display: inline-block;
     margin-top: 1rem;

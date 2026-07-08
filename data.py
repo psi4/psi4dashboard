@@ -106,6 +106,26 @@ def get_scf_data():
     return _scf_dataframe
 
 
+def get_scf_accelerators(test_name):
+    """Return one row per (version, accelerator) for a test's accelerator_raw.
+
+    accelerator_raw ({scheme: iteration_count}) is duplicated across the
+    label-exploded SCF rows, so collapse to one row per version before exploding
+    the dict. ``create_scf_df`` requires a non-empty accelerator_raw on every
+    loaded row, so no missing/empty guard is needed here. Sorted by version so
+    the chart line follows it. Returns the (possibly empty) frame, or None when
+    no SCF data is loaded.
+    """
+    df = get_scf_data()
+    if df is None or df.empty:
+        return df
+    df = df[df["test_name"] == test_name]
+    df = df.drop_duplicates(subset=["psi4_version"])[["test_name", "psi4_version", "accelerator_raw"]]
+    df = df.reset_index(drop=True)          # explode_dict joins on index; keep it unique
+    df = explode_dict(df, "accelerator_raw", "accelerator", "iterations")
+    return df.sort_values("psi4_version", key=lambda x: x.map(Version))
+
+
 def get_parallelism_data():
     """Return the full, unfiltered parallelism DataFrame (see ``get_parallelism_slice``)."""
     return _parallelism_dataframe
@@ -308,11 +328,16 @@ def create_scf_df(path: Path):
     """Parse one ``scf_iterations.json`` into a per-label DataFrame, or ``None`` to skip.
 
     Returns ``None`` (so ``load_dataframe`` drops the file) when the payload lacks
-    the required keys (``scf``, ``psi4_version``, ``psi4_commit_hash``) or has no
-    per-label iteration data. Otherwise flattens the ``scf`` block and explodes
-    ``iterations_by_label`` into one row per (label, iterations) via
+    the required keys (``scf``, ``psi4_version``, ``psi4_commit_hash``) or its
+    ``scf`` block has no per-label iteration data (``iterations_by_label``) or no
+    ``accelerator_raw`` breakdown. Otherwise flattens the ``scf`` block and
+    explodes ``iterations_by_label`` into one row per (label, iterations) via
     ``explode_dict``, dropping bookkeeping columns (git dirty/branch,
     total_iterations, accelerators).
+
+    Requiring ``accelerator_raw`` here means every loaded row carries a usable
+    accelerator dict, so ``get_scf_accelerators`` can explode it without
+    re-checking for missing/empty values.
 
     Columns:
 
@@ -320,7 +345,9 @@ def create_scf_df(path: Path):
         psi4_version     str
         psi4_commit_hash str      UNUSED downstream
         optimization     object   UNUSED downstream
-        accelerator_raw  object   UNUSED downstream
+        accelerator_raw  object   dict {accelerator_scheme: iteration_count};
+                                  exploded by ``get_scf_accelerators`` for the
+                                  SCF page's accelerator breakdown
         label            object   SCF label this row was exploded to
         iterations       int64
         correlation      object   UNUSED downstream
@@ -334,8 +361,8 @@ def create_scf_df(path: Path):
         return
 
     scf_block = payload["scf"]
-    if not isinstance(scf_block, dict) or not scf_block.get("iterations_by_label"):
-        logger.debug("Skipping %s: no per-label SCF iteration data", path)
+    if not isinstance(scf_block, dict) or not scf_block.get("iterations_by_label") or not scf_block.get("accelerator_raw"):
+        logger.debug("Skipping %s: no per-label SCF iteration or accelerator data", path)
         return
 
     raw_df = pd.DataFrame([payload]) # must keep brackets to read it as single entry
