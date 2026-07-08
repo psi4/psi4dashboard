@@ -1,0 +1,320 @@
+/* Psi4 Dashboard theme — modeled after https://psicode.org/
+   Dark slate palette, Dosis headings, Raleway body. */
+
+@import url('https://fonts.googleapis.com/css2?family=Dosis:wght@200;400;500;700&family=Raleway:wght@200;400;700&display=swap');
+
+:root {
+    --bg-page: #353b43;
+    --bg-nav: #1d2024;
+    --bg-card: #292f36;
+    --accent-blue: #44689d;
+    --accent-blue-light: #5f99cf;
+    --accent-teal: #2c9091;
+    --accent-green: #6cb670;
+    /* Dash's default slider-thumb fill (--Dash-Fill-Interactive-Strong). Named
+       here so the slider circle and the selected metric tab share one color. */
+    --accent-purple: #7f4bc4;
+    --text-heading: #afbac4;
+    --text-body: #8f98a1;
+    --border: #4e595f;
+}
+
+html {
+    color: var(--text-body);
+}
+
+body {
+    margin: 0;
+    background-color: var(--bg-page);
+    font-family: "Raleway", sans-serif;
+    color: var(--text-body);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: "Dosis", sans-serif;
+    font-weight: 500;
+    color: var(--text-heading);
+    letter-spacing: 0.5px;
+}
+
+p {
+    color: var(--text-body);
+}
+
+a {
+    color: var(--accent-blue-light);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--accent-teal);
+}
+
+/* ---- Layout ---- */
+
+.page-content {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+/* ---- Header / navbar ---- */
+
+.site-header {
+    background-color: var(--bg-nav);
+    border-bottom: 3px solid var(--accent-blue);
+}
+
+.site-header .header-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1.5rem;
+}
+
+.site-brand {
+    display: flex;
+    align-items: center;
+    margin: 0;
+    font-family: "Dosis", sans-serif;
+    font-weight: 700;
+    font-size: 1.9rem;
+    letter-spacing: 1px;
+    color: var(--text-heading);
+    text-decoration: none;
+}
+
+/* The brand is now a link wrapping an <h1>; reset the heading's UA font-size,
+   weight and margins so it inherits the .site-brand styling above. */
+.site-brand h1 {
+    margin: 0;
+    font: inherit;
+}
+
+.site-brand .brand-accent {
+    color: var(--accent-blue-light);
+}
+
+.site-nav {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.site-nav a {
+    font-family: "Dosis", sans-serif;
+    font-weight: 500;
+    font-size: 1.15rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-body);
+    padding: 0.4rem 0.9rem;
+    border-radius: 3px;
+}
+
+.site-nav a:hover {
+    color: #fff;
+    background-color: var(--accent-blue);
+}
+
+/* ---- Cards / graph groups ---- */
+
+.graph-group {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1.1rem 1.25rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.graph-group h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.35rem;
+    color: var(--text-heading);
+    border-left: 4px solid var(--accent-green);
+    padding-left: 0.6rem;
+}
+
+/* Collapsible "View accelerator breakdown" disclosure on the SCF cards. */
+.graph-group details > summary {
+    cursor: pointer;
+    margin-top: 0.75rem;
+    color: var(--accent-blue-light);
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+.graph-group details > summary:hover {
+    color: var(--accent-teal);
+}
+
+/* The accelerator breakdown is itself a graph-group; nested inside a card it
+   drops the card chrome so it doesn't read as a heavy card-in-a-card. */
+.graph-group .graph-group {
+    border: none;
+    background: transparent;
+    padding: 0;
+    margin: 0.5rem 0 0;
+}
+
+.btn-link {
+    display: inline-block;
+    margin-top: 1rem;
+    background-color: var(--accent-blue);
+    color: #fff !important;
+    padding: 0.6rem 1.6rem;
+    border-radius: 3px;
+    font-family: "Dosis", sans-serif;
+    font-weight: 500;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.btn-link:hover {
+    background-color: var(--accent-teal);
+    color: #fff !important;
+}
+
+/* ---- Form controls (dark theme) ---- */
+
+/* Dropdown (Dash 4.x dcc.Dropdown). Dash themes it through its own
+   --Dash-* design tokens, which default to a light control. Override the
+   relevant classes so the control and its menu read like the .graph-group
+   cards (same bg-card fill, border and body text). The menu popover is
+   portaled to <body>, so its classes are targeted directly rather than via
+   a parent. !important beats Dash's bundled component stylesheet. */
+.dash-dropdown {
+    background: var(--bg-card) !important;
+    border-color: var(--border) !important;
+    color: var(--text-body) !important;
+}
+
+.dash-dropdown:focus {
+    border-color: var(--accent-blue-light) !important;
+    outline-color: var(--accent-blue-light) !important;
+}
+
+.dash-dropdown-value,
+.dash-dropdown-trigger-icon,
+.dash-dropdown-placeholder {
+    color: var(--text-body) !important;
+}
+
+/* Open menu popover */
+.dash-dropdown-content {
+    background: var(--bg-card) !important;
+    border-color: var(--border) !important;
+    color: var(--text-body) !important;
+}
+
+.dash-dropdown-search-container {
+    background: var(--bg-card) !important;
+    border-color: var(--border) !important;
+}
+
+.dash-dropdown-search {
+    color: var(--text-body) !important;
+}
+
+.dash-dropdown-option {
+    background: var(--bg-card) !important;
+    color: var(--text-body) !important;
+}
+
+/* Timer names carry their hierarchy as indented, multi-line labels (see
+   _nest_label). Preserve the newlines/tabs in both the menu options and the
+   selected value rather than collapsing them; a compact tab-size keeps each
+   level's indent tidy. */
+.dash-dropdown-option {
+    white-space: pre !important;
+    tab-size: 2;
+}
+
+/* Hovered / keyboard-highlighted option (scoped to the dropdown menu so it
+   doesn't bleed into Checklist/RadioItems, which share .dash-options-list-*) */
+.dash-dropdown-option:hover,
+.dash-dropdown-content .dash-options-list-option[aria-selected="true"] {
+    background: var(--accent-blue) !important;
+    color: #fff !important;
+}
+
+/* Checklist */
+.dash-checklist label,
+input[type="checkbox"] + label {
+    color: var(--text-body);
+    font-family: "Raleway", sans-serif;
+    margin-right: 1.25rem;
+}
+
+/* Slider line. Dash 4.x styles these from the component's own stylesheet, so
+   override with !important. ``track`` is the full line and ``range`` the
+   selected portion; both use the mark/checklist color so the whole control
+   reads consistently. (``dot`` only renders when ``dots=True``, which we don't
+   set — the visible ticks are the mark ``::before`` pseudo-elements below.) */
+.dash-slider-track,
+.dash-slider-range {
+    background-color: var(--text-body) !important;
+}
+
+/* Match the checklist option color. Dash 4.x renders marks as
+   ``.dash-slider-mark`` with an inline color, so ``!important`` is needed to
+   override it. ``-outside-selection`` is the variant for marks beyond the
+   selected range. */
+.dash-slider-mark,
+.dash-slider-mark-outside-selection {
+    color: var(--text-body) !important;
+}
+
+/* The tick above each mark is a ``::before`` pseudo-element colored
+   ``--Dash-Fill-Disabled`` (gray) by default; recolor it to match the labels. */
+.dash-slider-mark::before,
+.dash-slider-mark-outside-selection::before {
+    background-color: var(--text-body) !important;
+}
+
+/* The draggable handle (circle). Dash fills it with
+   ``--Dash-Fill-Interactive-Strong`` by default; pin it to our named variable
+   so it stays in sync with the selected tab below. */
+.dash-slider-thumb {
+    background-color: var(--accent-purple) !important;
+    /* Dash positions the tick marks assuming a 16px-wide thumb, but the handle
+       is 16px plus a 2px border, so its content-box renders 20px wide; Radix
+       measures that and offsets the thumb by half of it, drifting ~2px off the
+       ticks toward the slider ends. Border-box makes the rendered width exactly
+       16px so the thumb stays centered on every tick. */
+    box-sizing: border-box;
+}
+
+/* ---- Tabs (metric selector) ---- */
+
+/* Dash fills the selected tab with a light ``--Dash-Fill-Inverse-Strong`` that
+   clashes with the dark theme. Fill it (and its top accent) with the same color
+   as the slider circle instead, with white text for contrast. */
+.tab--selected,
+.tab--selected:hover {
+    background-color: var(--accent-purple) !important;
+    border-top-color: var(--accent-purple) !important;
+    color: #fff !important;
+}
+
+/* Plotly graphs sit on the card background. Reserve a strip of headroom above
+   the plot so the modebar can live there instead of overlapping the chart. */
+.js-plotly-plot {
+    margin-top: 2.5rem;
+    /* The modebar is moved above the plot (below); let it show rather than be
+       clipped by the plot container. */
+    overflow: visible !important;
+}
+
+.js-plotly-plot .svg-container {
+    overflow: visible !important;
+}
+
+/* Lift the modebar fully above the plot into the headroom reserved above. */
+.js-plotly-plot .modebar-container {
+    top: -2rem !important;
+}
