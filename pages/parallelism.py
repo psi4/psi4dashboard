@@ -43,6 +43,7 @@ def layout(level=None, version=None, test_name=None, **kwargs):
                 [{"label": t, "value": t} for t in tests],
                 sel_test,
                 "Select a test",
+                style={"marginBottom": "1rem"}
             ),
             graphs_container(IDS.graphs),
         ]

@@ -1,9 +1,22 @@
 """Shared data loading and runtime state for the dashboard.
 
-The data path is supplied on the command line at runtime, but Dash imports
-page modules when the app is constructed. To bridge that gap, the entry point
-loads the DataFrame and stashes it here with ``set_timing_dataframe``; page layouts and
-callbacks read filtered slices of it lazily at request time.
+All data is read from the sibling ``psi4dashboard-data`` repo at the hardcoded
+``DATA_DIR`` path. Dash imports page modules when the
+app is constructed, so ``dashboard.create_app`` loads each dataset once at startup
+and stashes it in a module global via ``set_timing_dataframe`` /
+``set_scf_dataframe`` / ``set_parallelism_dataframe``; page layouts and callbacks
+then read filtered slices lazily at request time.
+
+Datasets (one DataFrame each; full column schemas live on the ``create_*_df``
+parsers below):
+
+- **timing** — one row per timer per test run; from ``timer.json``.
+- **scf** — one row per (test run, SCF label); from ``scf_iterations.json``.
+- **parallelism** — one row per timer per core count; from ``<test>.json.n<cores>.out``.
+
+Cross-frame gotchas: timing and scf name the version column ``psi4_version``,
+while parallelism uses ``version`` and adds ``cores`` (and carries no
+``psi4_commit_hash``/``timer_path``).
 """
 
 import json
@@ -12,15 +25,41 @@ from packaging.version import Version
 
 import pandas as pd
 
-DATA_DIR = Path("../psi4dashboard-data/data/") ## change it as appopriate
+DATA_DIR = Path("../psi4dashboard-data/data/")
 
 _timing_dataframe = None
 _scf_dataframe = None
 _parallelism_dataframe = None
 
+# Column schema for each dataset. When every source file for a dataset is skipped,
+# ``load_dataframe`` returns an empty DataFrame with these columns (rather than
+# raising), so a loaded frame always exposes the full schema.
+# Full per-column documentation lives on the ``create_*_df`` parsers.
+TIMING_COLUMNS = [
+    "timer_id", "psi4_version", "psi4_commit_hash", "test_name",
+    "wall_time", "user_time", "system_time", "n_calls",
+    "timer_name", "parent_id", "timer_path", "level",
+]
+SCF_COLUMNS = [
+    "test_name", "psi4_version", "psi4_commit_hash", "optimization",
+    "accelerator_raw", "label", "iterations", "correlation",
+]
+PARALLELISM_COLUMNS = [
+    "test_name", "version", "cores", "timer_id", "timer_name", "parent_id",
+    "level", "wall_time", "user_time", "system_time", "n_calls",
+]
 
-def load_dataframe(filename, df_creator):
-    """load dataframe from all files of the given filename"""
+
+def load_dataframe(filename, df_creator, columns):
+    """Build one DataFrame from every ``filename`` found under ``DATA_DIR``.
+
+    Recursively globs ``DATA_DIR`` for ``filename`` (a plain name or a glob
+    pattern), runs ``df_creator(path)`` on each match, and concatenates the
+    results. ``df_creator`` returns a DataFrame, or ``None`` to skip a malformed
+    or empty file. When every file is skipped, returns an empty DataFrame with
+    ``columns`` (rather than raising); otherwise only the parsed frames are
+    concatenated, so their column dtypes are preserved.
+    """
     files = sorted(DATA_DIR.rglob(filename))
 
     dfs = []
@@ -30,9 +69,10 @@ def load_dataframe(filename, df_creator):
         if (df is not None):
             dfs.append(df)
 
-    df = pd.concat(dfs)
+    if not dfs:
+        return pd.DataFrame(columns=columns)
 
-    return df
+    return pd.concat(dfs)
 
 
 def set_timing_dataframe(df):
@@ -52,11 +92,18 @@ def set_parallelism_dataframe(df):
     _parallelism_dataframe = df
 
 
+def get_timing_data():
+    """Return the full, unfiltered timing DataFrame (see ``get_timing_slice`` for a slice)."""
+    return _timing_dataframe
+
+
 def get_scf_data():
+    """Return the full SCF DataFrame."""
     return _scf_dataframe
 
 
 def get_parallelism_data():
+    """Return the full, unfiltered parallelism DataFrame (see ``get_parallelism_slice``)."""
     return _parallelism_dataframe
 
 
@@ -125,15 +172,15 @@ def get_parallelism_children(parent_id, test_name, version):
     return df[mask].sort_values("cores")
 
 
-def get_timing_data(level=None, column=None, value=None):
+def get_timing_slice(level=None, column=None, value=None):
     """Return the stored rows narrowed to the requested slice (or None).
 
     With no arguments the full DataFrame is returned. ``level`` keeps only rows
     at that hierarchy level; ``column`` keeps only rows where that column equals
     ``value`` (so a ``None`` value yields an empty frame). The result is sorted
-    by ``version`` so chart lines follow it.
+    by ``psi4_version`` so chart lines follow it.
     """
-    df = _timing_dataframe
+    df = get_timing_data()
     if df is None:
         return None
     if level is not None:
@@ -143,18 +190,18 @@ def get_timing_data(level=None, column=None, value=None):
     return df.sort_values("psi4_version", key=lambda x: x.map(Version))
 
 
-def get_levels():
+def get_timing_levels():
     """Return the sorted distinct hierarchy levels, for the slider."""
-    df = get_timing_data()
+    df = get_timing_slice()
     return sorted(df["level"].dropna().unique()) if df is not None else []
 
 
-def get_options(column, level):
+def get_timing_options(column, level):
     """Return the sorted distinct values of ``column`` among rows at ``level``.
 
     Used to populate the dropdown for a given slider level.
     """
-    df = get_timing_data(level=level)
+    df = get_timing_slice(level=level)
     return sorted(df[column].unique()) if df is not None else []
 
 
@@ -170,14 +217,14 @@ def get_groups(df, group_column):
     return list(df.groupby(group_column))
 
 
-def get_children(parent_id, test_name):
+def get_timing_children(parent_id, test_name):
     """Return the child rows of ``parent_id`` within ``test_name``, by version.
 
     Children are rows naming this timer as their parent; they sit one level
     deeper. Used to render a filled-area breakdown for non-leaf timers. Returns
     an empty frame for a leaf timer (and ``None`` when no data is loaded).
     """
-    df = _timing_dataframe
+    df = get_timing_data()
     if df is None:
         return None
     df = df[(df["parent_id"] == parent_id) & (df["test_name"] == test_name)]
@@ -185,12 +232,35 @@ def get_children(parent_id, test_name):
 
 
 def create_timer_df(file: Path):
+    """Parse one ``timer.json`` into a per-timer DataFrame, or ``None`` to skip.
+
+    Returns ``None`` (so ``load_dataframe`` drops the file) when the payload is
+    missing required keys (``timers``, ``psi4_version``, ``psi4_commit_hash``) or
+    has no timers. Otherwise flattens the ``timers`` dict into one row per timer,
+    tags each with ``test_name`` (the file's grandparent dir), and names the id
+    column ``timer_id``.
+
+    Columns:
+
+        timer_id         str      ;-nested hierarchy id (e.g. "HF: Form G;JK: JK")
+        psi4_version     str
+        psi4_commit_hash str      UNUSED downstream (only a required key gating the parse)
+        test_name        str
+        wall_time        float64  seconds
+        user_time        float64  seconds
+        system_time      float64  seconds
+        n_calls          int64
+        timer_name       str      leaf segment of timer_id
+        parent_id        object   str, or None for a root timer
+        timer_path       object   UNUSED downstream
+        level            int64    nesting depth (count of ';')
+    """
     with open(file) as f:
         payload = json.load(f)
     
     required_keys = {'timers', 'psi4_version', 'psi4_commit_hash'}
 
-    if payload.keys() < required_keys:
+    if not (required_keys <= payload.keys()):
         #print(f"not all required keys are in {file}")
         return
     
@@ -214,7 +284,7 @@ def create_timer_df(file: Path):
 def load_timing_dataframe():
     """Read timer.json files from data repository into DataFrame.
     """
-    return load_dataframe("timer.json", create_timer_df)
+    return load_dataframe("timer.json", create_timer_df, TIMING_COLUMNS)
 
 
 def explode_dict(df, col, key_name, value_name):
@@ -231,18 +301,46 @@ def explode_dict(df, col, key_name, value_name):
 
 
 def create_scf_df(path: Path):
+    """Parse one ``scf_iterations.json`` into a per-label DataFrame, or ``None`` to skip.
+
+    Returns ``None`` (so ``load_dataframe`` drops the file) when the payload lacks
+    the required keys (``scf``, ``psi4_version``, ``psi4_commit_hash``) or has no
+    per-label iteration data. Otherwise flattens the ``scf`` block and explodes
+    ``iterations_by_label`` into one row per (label, iterations) via
+    ``explode_dict``, dropping bookkeeping columns (git dirty/branch,
+    total_iterations, accelerators).
+
+    Columns:
+
+        test_name        str
+        psi4_version     str
+        psi4_commit_hash str      UNUSED downstream
+        optimization     object   UNUSED downstream
+        accelerator_raw  object   UNUSED downstream
+        label            object   SCF label this row was exploded to
+        iterations       int64
+        correlation      object   UNUSED downstream
+    """
     with open(path) as f:
         payload = json.load(f)
 
-    payload
+    required_keys = {"scf", "psi4_version", "psi4_commit_hash"}
+    if not (required_keys <= payload.keys()):
+        # not a well-formed scf_iterations payload
+        return
+
+    scf_block = payload["scf"]
+    if not isinstance(scf_block, dict) or not scf_block.get("iterations_by_label"):
+        # no per-label iteration data to build rows from
+        return
 
     raw_df = pd.DataFrame([payload]) # must keep brackets to read it as single entry
 
     scf = pd.json_normalize(raw_df['scf'], max_level=0)
 
-    scf = scf.drop(["total_iterations", "accelerators"], axis=1)
+    scf = scf.drop(["total_iterations", "accelerators"], axis=1, errors="ignore")
 
-    clean_df = pd.concat([raw_df.drop(columns=["scf", "psi4_git_dirty", "psi4_branch"]), scf],axis=1)
+    clean_df = pd.concat([raw_df.drop(columns=["scf", "psi4_git_dirty", "psi4_branch"], errors="ignore"), scf],axis=1)
 
     final_df = explode_dict(clean_df, "iterations_by_label", "label", "iterations")
 
@@ -252,23 +350,59 @@ def create_scf_df(path: Path):
 def load_scf_dataframe():
     """Read scf_iterations.json files from data repository into DataFrame.
     """
-    return load_dataframe("scf_iterations.json", create_scf_df)
+    return load_dataframe("scf_iterations.json", create_scf_df, SCF_COLUMNS)
 
 
 def create_parallelism_df(path: Path):
+    """Parse one QCSchema ``<test>.json.n<cores>.out`` file into a timer DataFrame, or ``None`` to skip.
+
+    Returns ``None`` (so ``load_dataframe`` drops the file) when the filename
+    doesn't match the convention or the payload lacks ``provenance.version`` or
+    ``native_files['timer.json']`` timer data. ``test_name`` and ``cores`` come
+    from the filename (``bz-fnocc.json.n8.out`` -> test ``bz-fnocc``, 8 cores);
+    ``version`` from ``provenance.version``; and the per-timer rows from the
+    embedded ``native_files['timer.json']``. ``parent_id``, ``timer_name`` and
+    ``level`` are derived from the ``;``-nested ``timer_id``.
+
+    Columns:
+
+        test_name   str
+        version     str      NOTE: 'version', not 'psi4_version'
+        cores       int64    parsed from the filename
+        timer_id    str      ;-nested hierarchy id
+        timer_name  str
+        parent_id   str      None for a root timer
+        level       int64    nesting depth (count of ';')
+        wall_time   float64  seconds
+        user_time   float64  seconds -- UNUSED (the parallelism page plots wall_time only)
+        system_time float64  seconds -- UNUSED (the parallelism page plots wall_time only)
+        n_calls     float64
+    """
     f_name = path.as_posix().rsplit("/", 1)[-1]
     test_name = f_name.split('.', 1)[0] 
-    n_cores = int(f_name.rsplit('.', 2)[1][1:])
+    # cores come from the ".n<cores>" segment; skip names that don't match the
+    # <test>.json.n<cores>.out convention
+    name_parts = f_name.rsplit('.', 2)
+    if len(name_parts) < 3 or not name_parts[1].startswith('n') or not name_parts[1][1:].isdigit():
+        return
+    n_cores = int(name_parts[1][1:])
 
     with open(path) as f:
         payload = json.load(f)
 
-    version = payload['provenance']['version'] # get version number from the file
+    version = (payload.get('provenance') or {}).get('version') # version number from the file
 
-    data = payload['native_files']['timer.json'] # get timer.json from the file
+    data = (payload.get('native_files') or {}).get('timer.json') # timer.json from the file
+    if version is None or not data:
+        # missing provenance version or timer data
+        return
 
     # turn the timer.json into a pandas dataframe, and fix the layout of the dataframe
     df = pd.DataFrame(data).transpose().reset_index()
+
+    if df.shape[1] != 5:
+        # timer entries don't have the expected 4 metric fields
+        return
     
     # required to rename timer_id column 
     df.columns = ['timer_id','wall_time','user_time','system_time','n_calls']
@@ -292,4 +426,4 @@ def create_parallelism_df(path: Path):
 def load_parallelism_dataframe():
     """Read all parallelism files from data repository into DataFrame.
     """
-    return load_dataframe("*.json.n*", create_parallelism_df)
+    return load_dataframe("*.json.n*", create_parallelism_df, PARALLELISM_COLUMNS)

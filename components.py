@@ -11,7 +11,7 @@ from collections import namedtuple
 
 from dash import dcc, html
 
-from data import get_levels
+from data import get_timing_levels
 from theme import GRID
 
 METRICS = ["wall_time", "user_time", "system_time"]
@@ -36,7 +36,7 @@ def resolve_level(level, levels=None):
     the timing dataset's levels are used.
     """
     if levels is None:
-        levels = get_levels()
+        levels = get_timing_levels()
     if level is not None:
         selected = int(level)
     else:
@@ -59,14 +59,14 @@ def level_slider(slider_id, levels, value):
     )
 
 
-def select_dropdown(dropdown_id, options, value, placeholder):
+def select_dropdown(dropdown_id, options, value, placeholder, style=None):
     """Build the value-selecting dropdown, seeded with ``options``/``value``."""
     return dcc.Dropdown(
         id=dropdown_id,
         options=options,
         value=value,
         placeholder=placeholder,
-        style={"marginTop": "1rem"},
+        style={"marginTop": "1rem", **(style or {})},
     )
 
 

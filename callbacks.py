@@ -13,14 +13,14 @@ from dash import dcc, html
 from packaging.version import Version
 
 from data import (
-    get_children,
     get_groups,
-    get_options,
     get_parallelism_children,
     get_parallelism_slice,
     get_parallelism_tests,
     get_scf_data,
-    get_timing_data,
+    get_timing_children,
+    get_timing_options,
+    get_timing_slice,
 )
 from theme import style_figure
 
@@ -53,7 +53,7 @@ def dropdown_for_level(level, column, current=None):
     preserved when it is still valid, otherwise it falls back to the first
     option (or ``None`` when empty).
     """
-    values = get_options(column, level)
+    values = get_timing_options(column, level)
     value = current if current in values else (values[0] if values else None)
     options = [{"label": nest_label(v), "value": v} for v in values]
     return options, value
@@ -165,12 +165,12 @@ def timer_plots(value, level, select_column, group_column):
     timer_name); a leaf timer yields a single line. Headings are the nested,
     indented timer names. Feed the result to ``update_graphs``.
     """
-    df = get_timing_data(level=level, column=select_column, value=value)
+    df = get_timing_slice(level=level, column=select_column, value=value)
     plots = []
     for key, group in get_groups(df, group_column):
         timer_id = group["timer_id"].iloc[0]
         test_name = group["test_name"].iloc[0]
-        children = get_children(timer_id, test_name)
+        children = get_timing_children(timer_id, test_name)
         has_children = children is not None and not children.empty
         plots.append((
             nest_label(key),
