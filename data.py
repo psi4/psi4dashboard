@@ -60,6 +60,71 @@ def get_parallelism_data():
     return _parallelism_dataframe
 
 
+def get_parallelism_levels():
+    """Return the sorted distinct timer levels in the parallelism data."""
+    df = get_parallelism_data()
+    if df is None or df.empty:
+        return []
+    return sorted(df["level"].dropna().unique())
+
+
+def get_parallelism_versions():
+    """Return the sorted distinct Psi4 versions in the parallelism data."""
+    df = get_parallelism_data()
+    if df is None or df.empty:
+        return []
+    return sorted(df["version"].dropna().unique())
+
+
+def get_parallelism_tests(version):
+    """Return the sorted distinct test names present in ``version``.
+
+    Used to populate the test dropdown for the selected version, so it only
+    lists tests that actually have parallelism data there.
+    """
+    df = get_parallelism_data()
+    if df is None or df.empty:
+        return []
+    if version is not None:
+        df = df[df["version"] == version]
+    return sorted(df["test_name"].dropna().unique())
+
+
+def get_parallelism_slice(level=None, test_name=None, version=None):
+    """Return the parallelism rows narrowed to the requested slice (or None).
+
+    Each supplied filter (``version``, ``test_name``, ``level``) is applied in
+    turn; the result is sorted by ``cores`` so chart lines follow the core
+    count on the x-axis.
+    """
+    df = get_parallelism_data()
+    if df is None or df.empty:
+        return df
+    if version is not None:
+        df = df[df["version"] == version]
+    if test_name is not None:
+        df = df[df["test_name"] == test_name]
+    if level is not None:
+        df = df[df["level"] == level]
+    return df.sort_values("cores")
+
+
+def get_parallelism_children(parent_id, test_name, version):
+    """Return the child rows of ``parent_id`` within a test/version, by cores.
+
+    Children name this timer as their parent and sit one level deeper; used to
+    render a filled-area breakdown for non-leaf timers. Returns an empty frame
+    for a leaf timer (and ``None`` when no data is loaded).
+    """
+    df = get_parallelism_data()
+    if df is None or df.empty:
+        return df
+    mask = (df["parent_id"] == parent_id) & (df["test_name"] == test_name)
+    if version is not None:
+        mask &= df["version"] == version
+    return df[mask].sort_values("cores")
+
+
 def get_timing_data(level=None, column=None, value=None):
     """Return the stored rows narrowed to the requested slice (or None).
 

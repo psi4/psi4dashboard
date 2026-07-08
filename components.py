@@ -26,14 +26,17 @@ def page_ids(prefix, *roles):
     return namedtuple("PageIds", roles)(*(f"{prefix}-{role}" for role in roles))
 
 
-def resolve_level(level):
+def resolve_level(level, levels=None):
     """Return ``(levels, selected)`` for seeding the slider from the URL.
 
     ``levels`` is the sorted distinct hierarchy levels; ``selected`` is the
     slider's initial value — ``level`` from the URL when present, otherwise the
     minimum (top of the hierarchy), falling back to 0 when there is no data.
+    Pages backed by a different dataset pass their own ``levels``; when omitted
+    the timing dataset's levels are used.
     """
-    levels = get_levels()
+    if levels is None:
+        levels = get_levels()
     if level is not None:
         selected = int(level)
     else:

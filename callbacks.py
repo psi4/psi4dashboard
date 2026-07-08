@@ -12,7 +12,16 @@ import plotly.express as px
 from dash import dcc, html
 from packaging.version import Version
 
-from data import get_children, get_groups, get_options, get_scf_data, get_timing_data
+from data import (
+    get_children,
+    get_groups,
+    get_options,
+    get_parallelism_children,
+    get_parallelism_slice,
+    get_parallelism_tests,
+    get_scf_data,
+    get_timing_data,
+)
 from theme import style_figure
 
 # Timer ids encode their hierarchy as ``parent;child;grandchild``. Splitting on
@@ -50,38 +59,41 @@ def dropdown_for_level(level, column, current=None):
     return options, value
 
 
-def card_y_max(df, y, area):
+def card_y_max(df, y, area, x="psi4_version"):
     """Return the tallest y value a card's chart will reach, or 0 when empty.
 
-    For a stacked area chart the visible height at each version is the sum of the
-    series there, so the peak is the largest per-version total; a single line just
-    peaks at its own maximum. Used to give every card on a page one shared y range.
+    For a stacked area chart the visible height at each x position is the sum of
+    the series there, so the peak is the largest per-``x`` total; a single line
+    just peaks at its own maximum. Used to give every card on a page one shared y
+    range.
     """
     if df is None or df.empty or y not in df:
         return 0
-    peak = df.groupby("psi4_version")[y].sum().max() if area else df[y].max()
+    peak = df.groupby(x)[y].sum().max() if area else df[y].max()
     return 0 if peak != peak else peak  # coerce NaN (all-empty) to 0
 
 
-def graph_group(heading, df, y, color=None, area=False, hover_data=None, heading_style=None, y_max=None):
-    """Build one card: a heading plus an area or line chart of ``df`` over versions.
+def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_data=None, heading_style=None, y_max=None):
+    """Build one card: a heading plus an area or line chart of ``df`` over ``x``.
 
-    ``area`` selects a stacked filled-area chart (a multi-series breakdown)
-    rather than a single line; ``y``/``color``/``hover_data`` pick the plotted
-    columns. ``heading_style`` styles the card heading (e.g. to preserve the
-    indentation of a nested timer name). ``y_max`` fixes the top of the y-axis so
-    every card on a page shares one scale; when omitted the axis auto-scales.
+    ``x`` is the x-axis column (versions for the timer pages, cores for the
+    parallelism page). ``area`` selects a stacked filled-area chart (a
+    multi-series breakdown) rather than a single line; ``y``/``color``/
+    ``hover_data`` pick the plotted columns. ``heading_style`` styles the card
+    heading (e.g. to preserve the indentation of a nested timer name). ``y_max``
+    fixes the top of the y-axis so every card on a page shares one scale; when
+    omitted the axis auto-scales.
     """
     plot = px.area if area else px.line
     fig = plot(
         df,
-        x="psi4_version",
+        x=x,
         y=y,
         color=color,
         markers=True,
         hover_data=hover_data,
     )
-    # Show every version as a discrete tick on the x-axis.
+    # Show every x value as a discrete tick on the x-axis.
     fig.update_xaxes(tickmode="linear", dtick=1)
     if y_max and y_max > 0:
         # Pin the top to the page-wide max (with a little headroom so the peak
@@ -117,22 +129,24 @@ def update_dropdown(level, current, select_column):
     return dropdown_for_level(level, select_column, current)
 
 
-def update_graphs(plots, y, hover_data=None, heading_style=None, unify_y=False):
+def update_graphs(plots, y, x="psi4_version", hover_data=None, heading_style=None, unify_y=False):
     """Build one card per plot spec, optionally sharing a single page-wide y range.
 
     ``plots`` is a list of ``(heading, df, area, color)`` specs — one per card —
-    resolved by the caller (see ``timer_plots`` for the Tests/Timers pages, or the
-    SCF page for its own). Column ``y`` is plotted for every card; ``hover_data``
-    and ``heading_style`` apply uniformly. When ``unify_y`` is set the y-axis top
-    is fixed to the tallest card's peak so the cards read against a common scale;
+    resolved by the caller (see ``timer_plots`` for the Tests/Timers pages,
+    ``parallelism_plots`` for the parallelism page, or the SCF page for its own).
+    Column ``y`` is plotted against ``x`` for every card; ``hover_data`` and
+    ``heading_style`` apply uniformly. When ``unify_y`` is set the y-axis top is
+    fixed to the tallest card's peak so the cards read against a common scale;
     otherwise each card auto-scales to its own data.
     """
-    y_max = max((card_y_max(df, y, area) for _, df, area, _ in plots), default=0) if unify_y else None
+    y_max = max((card_y_max(df, y, area, x) for _, df, area, _ in plots), default=0) if unify_y else None
     return [
         graph_group(
             heading,
             df,
             y,
+            x=x,
             color=color,
             area=area,
             hover_data=hover_data,
@@ -165,3 +179,49 @@ def timer_plots(value, level, select_column, group_column):
             "timer_name" if has_children else None,
         ))
     return plots
+
+
+def parallelism_plots(test_name, version, level):
+    """Resolve the ``(heading, df, area, color)`` card specs for the parallelism page.
+
+    One spec per ``timer_id`` at ``level`` for the selected test and version,
+    plotted against cores: a timer with children yields a filled-area breakdown
+    of those children (colored by child timer_name); a leaf timer yields a single
+    line. Headings are the nested, indented timer names. Feed to ``update_graphs``
+    with ``x="cores"``.
+    """
+    df = get_parallelism_slice(level=level, test_name=test_name, version=version)
+    plots = []
+    for key, group in get_groups(df, "timer_id"):
+        timer_id = group["timer_id"].iloc[0]
+        children = get_parallelism_children(timer_id, test_name, version)
+        has_children = children is not None and not children.empty
+        plots.append((
+            nest_label(key),
+            children if has_children else group,
+            has_children,
+            "timer_name" if has_children else None,
+        ))
+    return plots
+
+
+def parallelism_tests(version, current=None):
+    """Return ``(options, value)`` for the test dropdown, limited to ``version``.
+
+    The current selection is preserved when it still has data in the chosen
+    version, otherwise it falls back to the first test (or ``None`` when empty).
+    """
+    tests = get_parallelism_tests(version)
+    value = current if current in tests else (tests[0] if tests else None)
+    options = [{"label": t, "value": t} for t in tests]
+    return options, value
+
+
+def parallelism_url_query(level, version, test):
+    """Reflect the slider level, version, and test selection into the URL query."""
+    params = {"level": level}
+    if version is not None:
+        params["version"] = version
+    if test is not None:
+        params["test_name"] = test
+    return "?" + urlencode(params)
