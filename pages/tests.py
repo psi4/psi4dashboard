@@ -5,9 +5,10 @@ from dash import Input, Output, State, callback, dcc, html
 
 import callbacks
 from components import (
+    METRICS,
     graphs_container,
     level_slider,
-    metric_tabs,
+    option_tabs,
     page_ids,
     resolve_level,
     select_dropdown,
@@ -31,7 +32,7 @@ def layout(level=None, **kwargs):
             html.H2("Tests Dashboard"),
             level_slider(IDS.slider, levels, selected),
             select_dropdown(IDS.dropdown, options, value, "Select a test"),
-            metric_tabs(IDS.metrics),
+            option_tabs(IDS.metrics, METRICS),
             graphs_container(IDS.graphs),
         ]
     )
