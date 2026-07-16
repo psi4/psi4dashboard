@@ -84,9 +84,13 @@ def update_url_query(level, version, test):
 )
 def update_graphs(version, test, metric, level):
     plots = callbacks.parallelism_plots(test, version, level)
+    line_weights = None
     if metric == "speedup":
         # Child speedups don't sum to the parent's, so a stacked-area breakdown
-        # would be misleading — draw a breakdown as one line per child instead.
+        # would be misleading — draw a breakdown as one line per child instead,
+        # weighting every line on the page by its 1-core wall time (normalized
+        # page-wide) so the timers that dominate the run read heaviest.
+        line_weights = callbacks.speedup_line_weights(plots)
         plots = [(heading, df, False, color) for heading, df, _, color in plots]
     return callbacks.update_graphs(
         plots,
@@ -95,6 +99,7 @@ def update_graphs(version, test, metric, level):
         hover_data=["n_calls", "wall_time"],
         heading_style=callbacks.NESTED_STYLE,
         unify_y=(metric=="speedup"),
+        line_weights=line_weights,
     )
 
 

@@ -82,7 +82,8 @@ def card_y_max(df, y, area, x="psi4_version"):
 
 
 def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_data=None,\
-                 heading_style=None, y_max=None, extra=None, color_map=None, show_legend=True, y_baseline=True):
+                 heading_style=None, y_max=None, extra=None, color_map=None, show_legend=True, y_baseline=True,
+                 line_weights=None):
     """Build one card: a heading plus an area or line chart of ``df`` over ``x``.
 
     ``x`` is the x-axis column (versions for the timer pages, cores for the
@@ -99,6 +100,11 @@ def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_
     the series names already read from the axis/heading). ``y_baseline`` anchors
     the y-axis at 0 when no ``y_max`` is given; set it False to let the axis
     auto-scale to the data (e.g. to show variation within a narrow band).
+    ``line_weights`` maps each ``color`` series name to a 0–1 importance weight
+    (a single-line card's weight sits under the ``None`` key; see
+    ``speedup_line_weights``): heavier series get thicker lines, larger markers,
+    and an earlier legend slot, so the page's lines read weighted by how much
+    each series matters rather than all lines looking equal.
     """
     plot = px.area if area else px.line
     fig = plot(
@@ -112,6 +118,17 @@ def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_
     )
     # Show every x value as a discrete tick on the x-axis.
     fig.update_xaxes(tickmode="linear", dtick=1)
+    if line_weights:
+        # Legend lists heaviest series first. A leaf card's lone trace carries
+        # no series name, so it falls back to the ``None``-keyed weight.
+        ranks = {name: rank for rank, name in
+                 enumerate(sorted(line_weights, key=line_weights.get, reverse=True))}
+        weight_of = lambda t: line_weights.get(t.name, line_weights.get(None, 1))
+        fig.for_each_trace(lambda t: t.update(
+            line_width=1 + 3 * weight_of(t),
+            marker_size=4 + 4 * weight_of(t),
+            legendrank=ranks.get(t.name, len(ranks)),
+        ))
     if y_max and y_max > 0:
         # Pin the top to the page-wide max (with a little headroom so the peak
         # marker isn't clipped) so cards are read against a common scale.
@@ -146,7 +163,8 @@ def update_dropdown(level, current, select_column):
     return dropdown_for_level(level, select_column, current)
 
 
-def update_graphs(plots, y, x="psi4_version", hover_data=None, heading_style=None, unify_y=False, extras=None):
+def update_graphs(plots, y, x="psi4_version", hover_data=None, heading_style=None, unify_y=False, extras=None,
+                  line_weights=None):
     """Build one card per plot spec, optionally sharing a single page-wide y range.
 
     ``plots`` is a list of ``(heading, df, area, color)`` specs — one per card —
@@ -157,10 +175,13 @@ def update_graphs(plots, y, x="psi4_version", hover_data=None, heading_style=Non
     fixed to the tallest card's peak so the cards read against a common scale;
     otherwise each card auto-scales to its own data. ``extras`` is an optional
     list parallel to ``plots`` supplying one appended element per card (``None``
-    for a card with no extra); when omitted no card gets one.
+    for a card with no extra); when omitted no card gets one. ``line_weights``
+    is likewise an optional parallel list of per-card series-weight dicts (see
+    ``graph_group``); ``None`` entries leave that card's lines uniform.
     """
     y_max = max((card_y_max(df, y, area, x) for _, df, area, _ in plots), default=0) if unify_y else None
     extras = extras or [None] * len(plots)
+    line_weights = line_weights or [None] * len(plots)
     return [
         graph_group(
             heading,
@@ -173,8 +194,9 @@ def update_graphs(plots, y, x="psi4_version", hover_data=None, heading_style=Non
             heading_style=heading_style,
             y_max=y_max,
             extra=extra,
+            line_weights=weights,
         )
-        for (heading, df, area, color), extra in zip(plots, extras)
+        for (heading, df, area, color), extra, weights in zip(plots, extras, line_weights)
     ]
 
 
@@ -264,6 +286,37 @@ def parallelism_plots(test_name, version, level):
             "timer_name" if has_children else None,
         ))
     return plots
+
+
+def speedup_line_weights(plots):
+    """Page-wide importance weights for the speedup cards: one dict per plot spec.
+
+    Weighs every line the page will draw — each ``color`` series of a breakdown
+    card, and the single line of a leaf card (keyed ``None``) — by its 1-core
+    wall time, the same baseline the speedup ratio divides by, falling back to
+    the series' largest wall time when no 1-core run exists. All weights share
+    one normalization: the costliest series anywhere on the page is 1.0, so a
+    line's visual weight compares across cards rather than only within its own,
+    and a card whose whole subtree is cheap reads uniformly thin. Returns a list
+    parallel to ``plots`` to feed ``update_graphs`` as ``line_weights``, or
+    ``None`` when the page has no usable wall-time data.
+    """
+    def series_weight(group):
+        base = group["wall_time"].where(group["cores"] == 1).dropna()
+        return base.iloc[0] if not base.empty else group["wall_time"].max()
+
+    cards = []
+    for _, df, _, color in plots:
+        if df is None or df.empty:
+            cards.append({})
+        elif color:
+            cards.append({name: series_weight(g) for name, g in df.groupby(color)})
+        else:
+            cards.append({None: series_weight(df)})
+    heaviest = max((w for card in cards for w in card.values() if w == w), default=0)
+    if not heaviest > 0:  # all-zero/NaN wall times: no meaningful weighting
+        return None
+    return [{name: w / heaviest for name, w in card.items() if w == w} or None for card in cards]
 
 
 def parallelism_tests(version, current=None):
