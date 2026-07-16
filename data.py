@@ -50,6 +50,7 @@ SCF_COLUMNS = [
 PARALLELISM_COLUMNS = [
     "test_name", "version", "cores", "timer_id", "timer_name", "parent_id",
     "level", "wall_time", "user_time", "system_time", "n_calls",
+    "speedup",  # derived across files in load_parallelism_dataframe, not parsed
 ]
 
 
@@ -124,6 +125,79 @@ def get_scf_accelerators(test_name):
     df = df.reset_index(drop=True)          # explode_dict joins on index; keep it unique
     df = explode_dict(df, "accelerator_raw", "accelerator", "iterations")
     return df.sort_values("psi4_version", key=lambda x: x.map(Version))
+
+
+def get_version_segments(df, value_column):
+    """Total ``value_column`` per version, split into minor-version line segments.
+
+    A single line across all versions would move just because the set of tests
+    changes between versions, so the history is broken into one segment per
+    consecutive minor-version step. The segment breakpoints are the first (lowest)
+    version of each minor; each segment runs from one breakpoint to the next,
+    inclusive, and captures any patch versions in between. Within a segment only tests
+    present in *all* of its versions are counted, so the total is comparable across
+    the segment; the total is the sum of ``value_column`` over those tests.
+
+    The caller supplies the (already filtered) frame, so this works with any
+    DataFrame carrying ``psi4_version``, ``test_name`` and ``value_column`` — see
+    ``get_scf_iteration_segments`` and ``get_timing_wall_time_segments``.
+
+    Returns a long-form frame (``psi4_version``, ``value_column``, ``segment``)
+    sorted by version and ready for ``graph_group(color="segment")``, or the
+    (possibly empty) frame itself when there is no data.
+    """
+    if df is None or df.empty:
+        return df
+
+    versions = sorted(df["psi4_version"].unique(), key=Version)
+
+    # Breakpoints: the first version seen for each (major, minor). Since versions is
+    # ascending, the first occurrence of a minor is its lowest version.
+    breakpoints = []
+    seen_minors = set()
+    for v in versions:
+        minor = (Version(v).major, Version(v).minor)
+        if minor not in seen_minors:
+            seen_minors.add(minor)
+            breakpoints.append(v)
+
+    rows = []
+    for b_a, b_b in zip(breakpoints, breakpoints[1:]):
+        seg_versions = [v for v in versions if Version(b_a) <= Version(v) <= Version(b_b)]
+        common = set.intersection(
+            *(set(df.loc[df["psi4_version"] == v, "test_name"]) for v in seg_versions)
+        )
+        segment = f"{b_a} → {b_b}"
+        for v in seg_versions:
+            total = df[(df["psi4_version"] == v) & (df["test_name"].isin(common))][value_column].sum()
+            rows.append({"psi4_version": v, value_column: total, "segment": segment})
+
+    out = pd.DataFrame(rows, columns=["psi4_version", value_column, "segment"])
+    return out.sort_values("psi4_version", key=lambda x: x.map(Version))
+
+
+def get_scf_iteration_segments():
+    """Return total SCF iterations per version as minor-version segments.
+
+    Sums ``iterations`` over every SCF label of every test (labels are disjoint,
+    so nothing is counted twice). See ``get_version_segments`` for the
+    segmentation rule and the returned shape.
+    """
+    return get_version_segments(get_scf_data(), "iterations")
+
+
+def get_timing_wall_time_segments():
+    """Return total wall time per version as minor-version segments.
+
+    Only level-0 (root) timers are summed: a parent timer's ``wall_time`` already
+    includes its children, so summing every level would count each nested region
+    once per ancestor above it. See ``get_version_segments`` for the segmentation
+    rule and the returned shape.
+    """
+    df = get_timing_data()
+    if df is None or df.empty:
+        return df
+    return get_version_segments(df[df["level"] == 0], "wall_time")
 
 
 def get_parallelism_data():
@@ -457,5 +531,21 @@ def create_parallelism_df(path: Path):
 
 def load_parallelism_dataframe():
     """Read all parallelism files from data repository into DataFrame.
+
+    Also adds the derived ``speedup`` column: within each (test_name, version,
+    timer_id) group, the 1-core ``wall_time`` divided by the row's ``wall_time``
+    (so 1.0 at one core, and ideally ``cores`` at ``cores``). NaN for timers
+    with no 1-core run. Derived here rather than in ``create_parallelism_df``
+    because a row's 1-core baseline lives in a different source file.
     """
-    return load_dataframe("*.json.n*", create_parallelism_df, PARALLELISM_COLUMNS)
+    df = load_dataframe("*.json.n*", create_parallelism_df, PARALLELISM_COLUMNS)
+    if df.empty:
+        return df
+    baseline = df["wall_time"].where(df["cores"] == 1)
+    df["speedup"] = (
+        df.assign(baseline=baseline)
+        .groupby(["test_name", "version", "timer_id"])["baseline"]
+        .transform("first")  # the group's 1-core wall_time (first skips NaN)
+        / df["wall_time"]
+    )
+    return df

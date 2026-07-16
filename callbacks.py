@@ -81,7 +81,8 @@ def card_y_max(df, y, area, x="psi4_version"):
     return 0 if peak != peak else peak  # coerce NaN (all-empty) to 0
 
 
-def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_data=None, heading_style=None, y_max=None, extra=None, color_map=None):
+def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_data=None,\
+                 heading_style=None, y_max=None, extra=None, color_map=None, show_legend=True, y_baseline=True):
     """Build one card: a heading plus an area or line chart of ``df`` over ``x``.
 
     ``x`` is the x-axis column (versions for the timer pages, cores for the
@@ -94,7 +95,10 @@ def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_
     the graph (e.g. the SCF page's collapsible accelerator breakdown).
     ``color_map`` pins specific ``color`` categories to fixed colors (so the same
     category is painted identically across cards); ``None`` keeps Plotly Express's
-    default sequence.
+    default sequence. ``show_legend`` toggles the per-series legend (drop it when
+    the series names already read from the axis/heading). ``y_baseline`` anchors
+    the y-axis at 0 when no ``y_max`` is given; set it False to let the axis
+    auto-scale to the data (e.g. to show variation within a narrow band).
     """
     plot = px.area if area else px.line
     fig = plot(
@@ -112,11 +116,11 @@ def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_
         # Pin the top to the page-wide max (with a little headroom so the peak
         # marker isn't clipped) so cards are read against a common scale.
         fig.update_yaxes(range=[0, y_max * 1.05])
-    else:
+    elif y_baseline:
         # Anchor the y-axis at 0 so areas/lines are read against a common baseline.
         fig.update_yaxes(rangemode="tozero")
     # Keep each graph short so more fit on screen at once.
-    fig.update_layout(height=250, margin=dict(l=40, r=10, t=10, b=30))
+    fig.update_layout(height=250, margin=dict(l=40, r=10, t=10, b=30), showlegend=show_legend)
     style_figure(fig)
     return html.Div(
         className="graph-group",

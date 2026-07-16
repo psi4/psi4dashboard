@@ -70,14 +70,19 @@ def select_dropdown(dropdown_id, options, value, placeholder, style=None):
     )
 
 
-def metric_tabs(metrics_id):
-    """Build the tab strip that picks which metric the charts plot."""
+def option_tabs(tabs_id, options, value=None):
+    """Build a tab strip choosing one of ``options`` (snake_case strings).
+
+    Tab labels are derived from the option values (``wall_time`` -> "Wall
+    Time"). ``value`` selects the initially active tab; it defaults to the
+    first option.
+    """
     return dcc.Tabs(
-        id=metrics_id,
-        value=METRICS[0],
+        id=tabs_id,
+        value=value if value is not None else options[0],
         children=[
-            dcc.Tab(label=m.replace("_", " ").title(), value=m)
-            for m in METRICS
+            dcc.Tab(label=o.replace("_", " ").title(), value=o)
+            for o in options
         ],
         colors={
             "border": GRID,

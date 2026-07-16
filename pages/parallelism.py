@@ -1,4 +1,4 @@
-"""Parallelism page: wall-time-vs-cores charts per timer, served at /parallelism."""
+"""Parallelism page: wall-time- and speedup-vs-cores charts per timer, served at /parallelism."""
 
 import dash
 from dash import Input, Output, State, callback, dcc, html
@@ -7,13 +7,16 @@ import callbacks
 from components import (
     graphs_container,
     level_slider,
+    option_tabs,
     page_ids,
     resolve_level,
     select_dropdown,
 )
 from data import get_parallelism_levels, get_parallelism_tests, get_parallelism_versions
 
-IDS = page_ids("parallelism", "url", "slider", "version", "test", "graphs")
+IDS = page_ids("parallelism", "url", "slider", "version", "test", "metrics", "graphs")
+
+METRICS = ["wall_time", "speedup"]
 
 
 def layout(level=None, version=None, test_name=None, **kwargs):
@@ -43,8 +46,8 @@ def layout(level=None, version=None, test_name=None, **kwargs):
                 [{"label": t, "value": t} for t in tests],
                 sel_test,
                 "Select a test",
-                style={"marginBottom": "1rem"}
             ),
+            option_tabs(IDS.metrics, METRICS),
             graphs_container(IDS.graphs),
         ]
     )
@@ -76,17 +79,22 @@ def update_url_query(level, version, test):
     Output(IDS.graphs, "children"),
     Input(IDS.version, "value"),
     Input(IDS.test, "value"),
+    Input(IDS.metrics, "value"),
     Input(IDS.slider, "value"),
 )
-def update_graphs(version, test, level):
+def update_graphs(version, test, metric, level):
     plots = callbacks.parallelism_plots(test, version, level)
+    if metric == "speedup":
+        # Child speedups don't sum to the parent's, so a stacked-area breakdown
+        # would be misleading — draw a breakdown as one line per child instead.
+        plots = [(heading, df, False, color) for heading, df, _, color in plots]
     return callbacks.update_graphs(
         plots,
-        "wall_time",
+        metric,
         x="cores",
-        hover_data=["n_calls"],
+        hover_data=["n_calls", "wall_time"],
         heading_style=callbacks.NESTED_STYLE,
-        unify_y=True,
+        unify_y=(metric=="speedup"),
     )
 
 
