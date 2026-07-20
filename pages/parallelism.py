@@ -98,8 +98,8 @@ def update_graphs(version, test, metric, level):
         x="cores",
         hover_data=["n_calls", "wall_time"],
         heading_style=callbacks.NESTED_STYLE,
-        unify_y=(metric=="speedup"),
         line_weights=line_weights,
+        ref_line=(metric=="speedup"),
     )
 
 

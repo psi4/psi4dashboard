@@ -23,7 +23,7 @@ from data import (
     get_timing_options,
     get_timing_slice,
 )
-from theme import ACCELERATOR_COLORS, style_figure
+from theme import ACCELERATOR_COLORS, REF_LINE, style_figure
 
 # Timer ids encode their hierarchy as ``parent;child;grandchild``. Splitting on
 # this separator and indenting each level two tabs deeper renders the nesting.
@@ -83,7 +83,7 @@ def card_y_max(df, y, area, x="psi4_version"):
 
 def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_data=None,\
                  heading_style=None, y_max=None, extra=None, color_map=None, show_legend=True, y_baseline=True,
-                 line_weights=None):
+                 line_weights=None, ref_line=False):
     """Build one card: a heading plus an area or line chart of ``df`` over ``x``.
 
     ``x`` is the x-axis column (versions for the timer pages, cores for the
@@ -104,7 +104,10 @@ def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_
     (a single-line card's weight sits under the ``None`` key; see
     ``speedup_line_weights``): heavier series get thicker lines, larger markers,
     and an earlier legend slot, so the page's lines read weighted by how much
-    each series matters rather than all lines looking equal.
+    each series matters rather than all lines looking equal. ``ref_line`` draws a
+    dashed ``y = x`` diagonal spanning the x data range (ideal linear speedup:
+    N cores → N× faster), so each speedup line reads against the perfect-scaling
+    baseline it can't beat.
     """
     plot = px.area if area else px.line
     fig = plot(
@@ -129,6 +132,18 @@ def graph_group(heading, df, y, x="psi4_version", color=None, area=False, hover_
             marker_size=4 + 4 * weight_of(t),
             legendrank=ranks.get(t.name, len(ranks)),
         ))
+    if ref_line and df is not None and not df.empty and x in df:
+        xs = df[x].dropna()
+        if not xs.empty:
+            lo, hi = xs.min(), xs.max()
+            # Dashed diagonal as a shape, not a trace: it gets no legend entry and
+            # doesn't feed the y-axis autoscale (so a card that scales poorly still
+            # frames its own line instead of stretching up to y = max cores). Drawn
+            # below the data and clipped to whatever y-range the data sets.
+            fig.add_shape(
+                type="line", x0=lo, y0=lo, x1=hi, y1=hi, layer="below",
+                line=dict(color=REF_LINE, dash="dash", width=1),
+            )
     if y_max and y_max > 0:
         # Pin the top to the page-wide max (with a little headroom so the peak
         # marker isn't clipped) so cards are read against a common scale.
@@ -164,7 +179,7 @@ def update_dropdown(level, current, select_column):
 
 
 def update_graphs(plots, y, x="psi4_version", hover_data=None, heading_style=None, unify_y=False, extras=None,
-                  line_weights=None):
+                  line_weights=None, ref_line=False):
     """Build one card per plot spec, optionally sharing a single page-wide y range.
 
     ``plots`` is a list of ``(heading, df, area, color)`` specs — one per card —
@@ -178,6 +193,8 @@ def update_graphs(plots, y, x="psi4_version", hover_data=None, heading_style=Non
     for a card with no extra); when omitted no card gets one. ``line_weights``
     is likewise an optional parallel list of per-card series-weight dicts (see
     ``graph_group``); ``None`` entries leave that card's lines uniform.
+    ``ref_line`` draws the dashed ``y = x`` ideal-speedup diagonal on every card
+    (see ``graph_group``).
     """
     y_max = max((card_y_max(df, y, area, x) for _, df, area, _ in plots), default=0) if unify_y else None
     extras = extras or [None] * len(plots)
@@ -195,6 +212,7 @@ def update_graphs(plots, y, x="psi4_version", hover_data=None, heading_style=Non
             y_max=y_max,
             extra=extra,
             line_weights=weights,
+            ref_line=ref_line,
         )
         for (heading, df, area, color), extra, weights in zip(plots, extras, line_weights)
     ]
