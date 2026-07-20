@@ -6,6 +6,10 @@ TEXT_HEADING = "#afbac4"
 TEXT_BODY = "#8f98a1"
 GRID = "#4e595f"
 
+# Muted diagonal for the ideal-speedup (y=x) reference line: visible but
+# subordinate to the data lines it's compared against.
+REF_LINE = TEXT_BODY
+
 # Accent colors used to cycle the per-metric/per-trace lines.
 COLORWAY = ["#5f99cf", "#6cb670", "#2c9091", "#44689d", "#c79a4b", "#b06a8e"]
 
